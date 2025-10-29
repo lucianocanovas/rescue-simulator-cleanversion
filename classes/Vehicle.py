@@ -1,7 +1,7 @@
 from assets import load_sprite
 from classes.Item import Item, Person
 from classes.Player import Player
-from pathfinding import find_nearest_item, find_path_to_column
+from pathfinding import find_nearest_item, find_nearest_person, find_path_to_column
 from classes.Mine import Mine
 
 class Vehicle:
@@ -38,7 +38,10 @@ class Vehicle:
             return
         # If not full, find nearest safe item
         if len(self.load) < self.capacity:
-            path = find_nearest_item(map_manager.grid, self.position, map_manager.danger_zones)
+            if self.only_persons:
+                path = find_nearest_person(map_manager.grid, self.position, map_manager.danger_zones)
+            else:
+                path = find_nearest_item(map_manager.grid, self.position, map_manager.danger_zones)
             if path:
                 self.path = path[1:]
                 self.state = 'collecting'
@@ -170,4 +173,4 @@ class Car(Vehicle):
 
 class Motorcycle(Vehicle):
     def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=1, sprite="car.png", load=[], only_persons=True)
+        super().__init__(team, position, capacity=1, sprite="motorcycle.png", load=[], only_persons=True)

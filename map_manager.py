@@ -12,9 +12,8 @@ class MapManager:
         self.width = width
         self.height = height
         self.grid = [[None for _ in range(self.height)] for _ in range(self.width)]
+        self.mines = []
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
-        # collision policy: 'prefer_move' picks one vehicle to move on conflicts
-        # 'allow_crash' lets all vehicles move and collisions are resolved after
         self.collision_policy = 'prefer_move'
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
@@ -70,13 +69,12 @@ class MapManager:
             self.grid[x][y] = vehicle
 
         # Setup Mines
-        mines = []
-        mines.append(Mine_O1(self.get_empty_cell(11, 10)))
-        mines.append(Mine_O2(self.get_empty_cell(6, 5)))
-        mines.append(Mine_T1(self.get_empty_cell(11)))
-        mines.append(Mine_T2(self.get_empty_cell(2, 5)))
-        mines.append(Mine_G1(self.get_empty_cell(8)))
-        for mine in mines:
+        self.mines.append(Mine_O1(self.get_empty_cell(11, 10)))
+        self.mines.append(Mine_O2(self.get_empty_cell(6, 5)))
+        self.mines.append(Mine_T1(self.get_empty_cell(11)))
+        self.mines.append(Mine_T2(self.get_empty_cell(2, 5)))
+        self.mines.append(Mine_G1(self.get_empty_cell(8)))
+        for mine in self.mines:
             x, y = mine.position
             self.grid[x][y] = mine
 
@@ -113,10 +111,16 @@ class MapManager:
                             if 0 <= nx < self.width and 0 <= ny < self.height:
                                 self.danger_zones[nx][ny] = True
                 if isinstance(obj, Vehicle):
-                    vx, vy = obj.position
-                    self.danger_zones[vx][vy] = True
+                    vehicle_x, vehicle_y = obj.position
+                    self.danger_zones[vehicle_x][vehicle_y] = True
     
-    def next_turn(self):
+    def next_turn(self, current_turn: int):
+
+        if current_turn % 7 == 0:
+            for mine in self.mines:
+                if isinstance(mine, Mine_G1):
+                    mine.toggle()
+
         # PLAN PHASE: ask every vehicle to plan its path (does not modify grid)
         vehicles = list(self.player1.vehicles) + list(self.player2.vehicles)
         for v in vehicles:
@@ -175,16 +179,12 @@ class MapManager:
         # Recompute danger zones in case mines moved/teleported
         self.update_danger_zones()
 
-        # After movement, handle collisions and mine triggers
+        # After movement, handle collisions
         self.check_collisions()
-        # After handling collisions, ensure any vehicles currently in their
-        # base unload their cargo and award points.
-        for v in list(self.player1.vehicles) + list(self.player2.vehicles):
-            try:
-                v.unload_if_at_base(self)
-            except Exception:
-                pass
 
+        # Unload at base
+        for vehicle in list(self.player1.vehicles) + list(self.player2.vehicles):
+            vehicle.unload_if_at_base(self)
         return
     
     def check_collisions(self):
@@ -199,42 +199,35 @@ class MapManager:
             if len(vs) > 1:
                 x, y = pos
                 for v in vs:
-                    try:
-                        if v in v.team.vehicles:
-                            v.team.vehicles.remove(v)
-                    except Exception:
-                        pass
-                # clear grid cell
-                try:
-                    self.grid[x][y] = None
-                except Exception:
-                    pass
+                    if v in v.team.vehicles:
+                        v.team.vehicles.remove(v)
+                self.grid[x][y] = None
 
-        # Collect all mines currently on the grid
+        # Collect all mines on the grid
         mines = []
         for x in range(self.width):
             for y in range(self.height):
-                obj = self.grid[x][y]
+                object = self.grid[x][y]
                 try:
                     from classes.Mine import Mine as _Mine
                 except Exception:
                     _Mine = None
-                if _Mine is not None and isinstance(obj, _Mine):
-                    mines.append(obj)
+                if _Mine is not None and isinstance(object, _Mine):
+                    mines.append(object)
 
-        # Remove vehicles that are inside any mine radius
-        for v in list(self.player1.vehicles) + list(self.player2.vehicles):
-            vx, vy = v.position
+        # Remove vehicles that are inside a mine radius
+        for vehicle in list(self.player1.vehicles) + list(self.player2.vehicles):
+            vehicle_x, vehicle_y = vehicle.position
             for mine in mines:
-                mx, my = mine.position
-                if abs(vx - mx) <= mine.x_radius and abs(vy - my) <= mine.y_radius:
+                mine_x, mine_y = mine.position
+                if abs(vehicle_x - mine_x) <= mine.x_radius and abs(vehicle_y - mine_y) <= mine.y_radius:
                     try:
-                        if v in v.team.vehicles:
-                            v.team.vehicles.remove(v)
+                        if vehicle in vehicle.team.vehicles:
+                            vehicle.team.vehicles.remove(vehicle)
                     except Exception:
                         pass
                     try:
-                        self.grid[vx][vy] = None
+                        self.grid[vehicle_x][vehicle_y] = None
                     except Exception:
                         pass
                     break

@@ -31,5 +31,10 @@ class Mine_G1(Mine):
     def __init__(self, position: tuple[int, int]):
         super().__init__(position, x_radius=7, y_radius=7, sprite="mine_G1.png")
 
-    def teleport(self, new_position: tuple[int, int]):
-        self.position = new_position
+    def toggle(self):
+        if self.x_radius == 7 and self.y_radius == 7:
+            self.x_radius = 0
+            self.y_radius = 0
+        else:
+            self.x_radius = 7
+            self.y_radius = 7

@@ -84,7 +84,7 @@ class Visualization:
                         self.current_turn += 1
                         # ACA IRIA LA FUNCION GUARDAR
                         # Advance simulation a single step (MapManager handles vehicle movement)
-                        self.map_manager.next_turn()
+                        self.map_manager.next_turn(self.current_turn)
                         print(f"Advancing to turn {self.current_turn}")
                     pass
                 if event.key == pygame.K_LEFT:
