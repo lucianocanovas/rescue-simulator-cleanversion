@@ -1,7 +1,7 @@
 import random
 from classes.Mine import Mine, Mine_O1, Mine_O2, Mine_T1, Mine_T2, Mine_G1
 from classes.Item import Person, Weapon, Clothing, Food, Heal
-from classes.Vehicle import Car, Jeep, Motorcycle, Truck
+from classes.Vehicle import Vehicle, Car, Jeep, Motorcycle, Truck
 from classes.Player import Player
 from strategies import Strategy
 
@@ -112,6 +112,9 @@ class MapManager:
                             ny = my + dy
                             if 0 <= nx < self.width and 0 <= ny < self.height:
                                 self.danger_zones[nx][ny] = True
+                if isinstance(obj, Vehicle):
+                    vx, vy = obj.position
+                    self.danger_zones[vx][vy] = True
     
     def next_turn(self):
         # PLAN PHASE: ask every vehicle to plan its path (does not modify grid)
