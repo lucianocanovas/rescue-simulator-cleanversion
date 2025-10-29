@@ -174,6 +174,14 @@ class MapManager:
 
         # After movement, handle collisions and mine triggers
         self.check_collisions()
+        # After handling collisions, ensure any vehicles currently in their
+        # base unload their cargo and award points.
+        for v in list(self.player1.vehicles) + list(self.player2.vehicles):
+            try:
+                v.unload_if_at_base(self)
+            except Exception:
+                pass
+
         return
     
     def check_collisions(self):

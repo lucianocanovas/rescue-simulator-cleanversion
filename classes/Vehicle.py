@@ -113,6 +113,31 @@ class Vehicle:
                 self.state = 'idle'
                 self.path = []
 
+    def unload_if_at_base(self, map_manager):
+        """If the vehicle is at its team's base, unload all items, award points
+        to the team, and clear the load. Returns True if unload occurred."""
+        if not self.load:
+            return False
+        base_x = 0 if map_manager.player1 is self.team else map_manager.width - 1
+        if self.position[0] != base_x:
+            return False
+
+        total = 0
+        for it in list(self.load):
+            try:
+                total += getattr(it, 'value', 0)
+            except Exception:
+                pass
+        try:
+            self.team.add_points(total)
+        except Exception:
+            pass
+        # clear load
+        self.load = []
+        self.state = 'idle'
+        self.path = []
+        return True
+
     def pick_item(self, item: Item):
         if len(self.load) >= self.capacity:
             return False
