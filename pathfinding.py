@@ -1,4 +1,7 @@
 from typing import Any
+from collections import deque
+from classes.Item import Item, Person
+from classes.Mine import Mine
 
 def in_bounds(grid: list[list[Any]], position: tuple[int, int]):
     x, y = position
@@ -46,14 +49,6 @@ def find_nearest_item(grid: list[list[Any]], start: tuple[int, int], danger_zone
     """BFS from start over safe cells (danger_zones False) until an Item is found.
     Returns path to the item (including start and goal) or None if none reachable.
     """
-    from collections import deque
-    try:
-        from classes.Item import Item
-        from classes.Mine import Mine
-    except Exception:
-        Item = None
-        Mine = None
-
     q = deque([start])
     came_from = {start: None}
 
@@ -101,14 +96,6 @@ def find_nearest_person(grid: list[list[Any]], start: tuple[int, int], danger_zo
     """BFS from start over safe cells (danger_zones False) until a Person is found.
     Returns path to the person (including start and goal) or None if none reachable.
     """
-    from collections import deque
-    try:
-        from classes.Item import Person
-        from classes.Mine import Mine
-    except Exception:
-        Person = None
-        Mine = None
-
     q = deque([start])
     came_from = {start: None}
 
@@ -157,12 +144,6 @@ def find_path_to_column(grid: list[list[Any]], start: tuple[int, int], target_x:
     """BFS to the nearest cell whose x coordinate == target_x and is walkable.
     Returns path or None.
     """
-    from collections import deque
-    try:
-        from classes.Mine import Mine
-    except Exception:
-        Mine = None
-
     q = deque([start])
     came_from = {start: None}
 
