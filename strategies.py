@@ -6,6 +6,7 @@ class PickNearest(Strategy):
     def plan(self, vehicle, map_manager):
         pass
     
+# HAY QUE HACER QUE LOS AUTOS DE DISTINTOS EQUIPOS EXPLOTEN AL CHOCAR
 class Kamikaze(Strategy):
     def plan(self, vehicle, map_manager):
         pass

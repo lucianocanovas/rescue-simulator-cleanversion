@@ -59,8 +59,9 @@ class Visualization:
         box_y = (WINDOW_SIZE - box_h)
         pygame.draw.rect(self.screen, (0 ,0 ,0), (box_x - 2, box_y - 2, box_w + 4, box_h + 4))
         pygame.draw.rect(self.screen, (255, 255, 255), (box_x, box_y, box_w, box_h))
-        p1_score = getattr(self.map_manager, "player1_score", 0)
-        p2_score = getattr(self.map_manager, "player2_score", 0)
+        # Read points from Player objects so scoreboard reflects actual points
+        p1_score = getattr(self.map_manager.player1, "points", 0)
+        p2_score = getattr(self.map_manager.player2, "points", 0)
         score_text = font.render(f"{p1_score}  -  {p2_score}", True, BLACK)
         score_rect = score_text.get_rect(center=(box_x + box_w // 2, box_y + box_h // 2))
         self.screen.blit(score_text, score_rect)
@@ -81,6 +82,7 @@ class Visualization:
                 if event.key == pygame.K_RIGHT:
                     if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
                         self.current_turn += 1
+<<<<<<< HEAD
 
                         # Guardamos el estado actual del juego antes de avanzar
                         saved_file = self.map_manager.save_game(self.current_turn)
@@ -90,6 +92,12 @@ class Visualization:
                         self.map_manager.next_turn()
                         
                         print(f"Avanzando al turno {self.current_turn}")
+=======
+                        # ACA IRIA LA FUNCION GUARDAR
+                        # Advance simulation a single step (MapManager handles vehicle movement)
+                        self.map_manager.next_turn(self.current_turn)
+                        print(f"Advancing to turn {self.current_turn}")
+>>>>>>> 488128571a20360d9b1da6d5dbd1624f0794f298
                     pass
                 if event.key == pygame.K_LEFT:
                     if self.current_turn > 0:
