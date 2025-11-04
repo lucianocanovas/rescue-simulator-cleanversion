@@ -1,7 +1,7 @@
 import random
-import pickle      # Biblioteca para serializar/guardar objetos Python
-import os         # Para operaciones con archivos y directorios
-from datetime import datetime  # Para agregar timestamp a los archivos guardados
+import pickle
+import os
+from datetime import datetime
 from classes.Mine import Mine, Mine_O1, Mine_O2, Mine_T1, Mine_T2, Mine_G1
 from classes.Item import Person, Weapon, Clothing, Food, Heal
 from classes.Vehicle import Vehicle, Car, Jeep, Motorcycle, Truck
@@ -10,14 +10,17 @@ from strategies import Strategy
 
 class MapManager:
     def __init__(self, player1_strategy: Strategy, player2_strategy: Strategy, width=50, height=50):
-        self.player1 = Player(player1_strategy)
-        self.player2 = Player(player2_strategy)
+        self.player1 = Player("Player 1", player1_strategy)
+        self.player2 = Player("Player 2", player2_strategy)
         self.width = width
         self.height = height
         self.grid = [[None for _ in range(self.height)] for _ in range(self.width)]
         self.mines = []
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
-        self.collision_policy = 'prefer_move'
+        # When 'allow_crash', multiple vehicles may move into the same cell
+        # and will be removed afterward by `check_collisions`.
+        # This makes collisions deterministic/simple: no avoidance policy.
+        self.collision_policy = 'allow_crash'
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
         x = random.randint(margin_x, self.width - 1 - margin_x)
@@ -34,49 +37,91 @@ class MapManager:
         return
     
     def save_game(self, turn_number):
-        # Creamos un diccionario con todo el estado del juego
+        """Save a serializable snapshot of the game state.
+
+        We avoid pickling pygame Surfaces by converting objects to simple
+        dictionaries that contain only primitive types (strings, numbers,
+        tuples, lists). Returns the filename written.
+        """
+        def serialize_item(item):
+            return {
+                'type': item.__class__.__name__,
+                'position': item.position,
+                'value': getattr(item, 'value', None)
+            }
+
+        def serialize_vehicle(v):
+            return {
+                'type': v.__class__.__name__,
+                'position': v.position,
+                'capacity': v.capacity,
+                'only_persons': v.only_persons,
+                'load': [serialize_item(it) for it in getattr(v, 'load', [])]
+            }
+
+        def serialize_mine(m):
+            return {
+                'type': m.__class__.__name__,
+                'position': m.position,
+                'x_radius': getattr(m, 'x_radius', None),
+                'y_radius': getattr(m, 'y_radius', None)
+            }
+
         game_state = {
-            'turn': turn_number,            # Número del turno actual
-            'grid': self.grid,              # Estado actual del tablero
-            'danger_zones': self.danger_zones,  # Zonas de peligro actuales
-            'player1': self.player1,        # Estado del jugador 1 (vehículos, estrategia, etc)
-            'player2': self.player2,        # Estado del jugador 2
-            'width': self.width,            # Ancho del tablero
-            'height': self.height           # Alto del tablero
+            'turn': turn_number,
+            'width': self.width,
+            'height': self.height,
+            'danger_zones': self.danger_zones,
+            'player1': {
+                'points': getattr(self.player1, 'points', 0),
+                'vehicles': [serialize_vehicle(v) for v in self.player1.vehicles]
+            },
+            'player2': {
+                'points': getattr(self.player2, 'points', 0),
+                'vehicles': [serialize_vehicle(v) for v in self.player2.vehicles]
+            },
+            'mines': [serialize_mine(m) for m in self.mines],
+            'items': []
         }
-        
-        # Creamos la carpeta saved_games si no existe
+
+        # collect standalone items from the grid (not part of vehicles or mines)
+        for x in range(self.width):
+            for y in range(self.height):
+                obj = self.grid[x][y]
+                # skip vehicles and mines
+                if isinstance(obj, Vehicle) or isinstance(obj, Mine):
+                    continue
+                if obj is not None:
+                    # assume it's an Item
+                    try:
+                        from classes.Item import Item as _Item
+                    except Exception:
+                        _Item = None
+                    if _Item is not None and isinstance(obj, _Item):
+                        game_state['items'].append(serialize_item(obj))
+
+        # ensure saved_games directory
         if not os.path.exists('saved_games'):
             os.makedirs('saved_games')
-            
-        # Generamos el nombre del archivo con fecha y hora
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # Formato: AñoMesDía_HoraMinutoSegundo
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"saved_games/game_{timestamp}_turn_{turn_number}.pkl"
-        
-        # Guardamos el estado del juego usando pickle
-        with open(filename, 'wb') as f:  # 'wb' = write binary
-            pickle.dump(game_state, f)    # Serializamos el estado del juego
-        
+
+        with open(filename, 'wb') as f:
+            pickle.dump(game_state, f)
+
         return filename
 
     def load_game(self, filename: str, turn: int):
-        self.clear()  # Limpiamos el estado actual del juego
+        """Load a previously saved game_state created by save_game.
+
+        This rebuilds mines, items and vehicles from the serialized data.
+        """
         try:
-            # Abrimos y cargamos el archivo guardado
-            with open(filename, 'rb') as f:  # 'rb' = read binary
-                game_state = pickle.load(f)  # Deserializamos el estado del juego
-                
-            # Restauramos cada componente del estado del juego
-            self.grid = game_state['grid']           # Restauramos el tablero
-            self.danger_zones = game_state['danger_zones']  # Restauramos zonas de peligro
-            self.player1 = game_state['player1']     # Restauramos jugador 1
-            self.player2 = game_state['player2']     # Restauramos jugador 2
-            self.width = game_state['width']         # Restauramos dimensiones
-            self.height = game_state['height']
-            
-            return True
+            with open(filename, 'rb') as f:
+                game_state = pickle.load(f)
         except Exception as e:
-            print(f"Error al cargar el juego: {e}")
+            print(f"Error al abrir el archivo de guardado: {e}")
             return False
 
     def new_game(self):
@@ -246,6 +291,8 @@ class MapManager:
                     if v in v.team.vehicles:
                         v.team.vehicles.remove(v)
                 self.grid[x][y] = None
+                print(f"Collision at {pos}, removed {len(vs)} vehicles.")
+                print(f"Vehicles involved: {[str(v.__class__.__name__)+" from "+v.team.name for v in vs]}")
 
         # Collect all mines on the grid
         mines = []

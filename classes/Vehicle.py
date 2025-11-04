@@ -67,10 +67,13 @@ class Vehicle:
             return
 
         dest_obj = map_manager.grid[nx][ny]
-        # If destination occupied by non-item, abort
-        if dest_obj is not None and not isinstance(dest_obj, Item):
+        # If destination occupied by a Mine, abort the move
+        if dest_obj is not None and isinstance(dest_obj, Mine):
             self.path = []
             return
+        # If destination occupied by another Vehicle, allow the move.
+        # Collisions are handled centrally by MapManager.check_collisions()
+        # Items are handled below (picked up if possible).
 
         old_x, old_y = self.position
         if 0 <= old_x < map_manager.width and 0 <= old_y < map_manager.height:
