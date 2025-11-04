@@ -81,10 +81,15 @@ class Visualization:
                 if event.key == pygame.K_RIGHT:
                     if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
                         self.current_turn += 1
-                        # ACA IRIA LA FUNCION GUARDAR
-                        # Advance simulation a single step (MapManager handles vehicle movement)
+
+                        # Guardamos el estado actual del juego antes de avanzar
+                        saved_file = self.map_manager.save_game(self.current_turn)
+                        print(f"Juego guardado en {saved_file}")
+                        # Avanzamos la simulación un paso (MapManager maneja el movimiento)
+
                         self.map_manager.next_turn()
-                        print(f"Advancing to turn {self.current_turn}")
+                        
+                        print(f"Avanzando al turno {self.current_turn}")
                     pass
                 if event.key == pygame.K_LEFT:
                     if self.current_turn > 0:

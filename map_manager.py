@@ -1,4 +1,7 @@
 import random
+import pickle      # Biblioteca para serializar/guardar objetos Python
+import os         # Para operaciones con archivos y directorios
+from datetime import datetime  # Para agregar timestamp a los archivos guardados
 from classes.Mine import Mine, Mine_O1, Mine_O2, Mine_T1, Mine_T2, Mine_G1
 from classes.Item import Person, Weapon, Clothing, Food, Heal
 from classes.Vehicle import Car, Jeep, Motorcycle, Truck
@@ -31,10 +34,51 @@ class MapManager:
                 self.grid[x][y] = None
         return
     
+    def save_game(self, turn_number):
+        # Creamos un diccionario con todo el estado del juego
+        game_state = {
+            'turn': turn_number,            # Número del turno actual
+            'grid': self.grid,              # Estado actual del tablero
+            'danger_zones': self.danger_zones,  # Zonas de peligro actuales
+            'player1': self.player1,        # Estado del jugador 1 (vehículos, estrategia, etc)
+            'player2': self.player2,        # Estado del jugador 2
+            'width': self.width,            # Ancho del tablero
+            'height': self.height           # Alto del tablero
+        }
+        
+        # Creamos la carpeta saved_games si no existe
+        if not os.path.exists('saved_games'):
+            os.makedirs('saved_games')
+            
+        # Generamos el nombre del archivo con fecha y hora
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # Formato: AñoMesDía_HoraMinutoSegundo
+        filename = f"saved_games/game_{timestamp}_turn_{turn_number}.pkl"
+        
+        # Guardamos el estado del juego usando pickle
+        with open(filename, 'wb') as f:  # 'wb' = write binary
+            pickle.dump(game_state, f)    # Serializamos el estado del juego
+        
+        return filename
+
     def load_game(self, filename: str, turn: int):
-        self.clear()
-        # Implement loading logic here
-        pass
+        self.clear()  # Limpiamos el estado actual del juego
+        try:
+            # Abrimos y cargamos el archivo guardado
+            with open(filename, 'rb') as f:  # 'rb' = read binary
+                game_state = pickle.load(f)  # Deserializamos el estado del juego
+                
+            # Restauramos cada componente del estado del juego
+            self.grid = game_state['grid']           # Restauramos el tablero
+            self.danger_zones = game_state['danger_zones']  # Restauramos zonas de peligro
+            self.player1 = game_state['player1']     # Restauramos jugador 1
+            self.player2 = game_state['player2']     # Restauramos jugador 2
+            self.width = game_state['width']         # Restauramos dimensiones
+            self.height = game_state['height']
+            
+            return True
+        except Exception as e:
+            print(f"Error al cargar el juego: {e}")
+            return False
 
     def new_game(self):
         self.clear()
