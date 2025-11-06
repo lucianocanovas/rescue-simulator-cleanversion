@@ -527,6 +527,8 @@ class MapManager:
                     self.explosions.append({'pos': (x, y), 'ttl': 3})
                 except Exception:
                     pass
+                # Track whether any vehicle restored an item to this cell
+                restored_item = False
                 for v in vs:
                     # If a vehicle had an item stored under it, restore it to the grid
                     try:
@@ -535,16 +537,26 @@ class MapManager:
                             try:
                                 itm.position = (x, y)
                                 self.grid[x][y] = itm
+                                restored_item = True
                             except Exception:
                                 pass
                             v.under_item = None
                     except Exception:
                         pass
-                    if v in v.team.vehicles:
-                        v.team.vehicles.remove(v)
-                # If no item was restored above, ensure grid cell is cleared
-                if self.grid[x][y] is None:
-                    self.grid[x][y] = None
+                    # Remove vehicle from its team's list
+                    try:
+                        if v in v.team.vehicles:
+                            v.team.vehicles.remove(v)
+                    except Exception:
+                        pass
+                # If no item was restored above, make sure the grid cell is cleared
+                # (previous code mistakenly checked if grid[x][y] is None before
+                # clearing, which left a vehicle instance visible on the grid).
+                if not restored_item:
+                    try:
+                        self.grid[x][y] = None
+                    except Exception:
+                        pass
                 # Registro de colisión: imprimimos información consistente en español
                 print(f"[COLISIÓN] Posición: {pos} — Vehículos eliminados: {len(vs)}")
                 detalle_vehiculos = [f"{v.__class__.__name__} (equipo: {v.team.name})" for v in vs]
