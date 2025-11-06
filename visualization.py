@@ -14,10 +14,9 @@ try:
         _cfg = json.load(_cfg_f)
     _viz = _cfg.get('visualization', {}) if isinstance(_cfg, dict) else {}
     CELL_SIZE = int(_viz.get('cell_size', 16))
-    WINDOW_SIZE = int(_viz.get('window_width', CELL_SIZE * 50))
+    WINDOW_SIZE = CELL_SIZE * 50
 except Exception:
-    # Fallbacks
-    CELL_SIZE = 16  # default cell size
+    CELL_SIZE = 16
     WINDOW_SIZE = 800
 
 ROWS = 50
