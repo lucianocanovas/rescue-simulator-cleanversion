@@ -1,0 +1,23 @@
+{
+  "visualization": {
+    "cell_size": 16,
+    "window_width": 800,
+    "window_height": 800,
+    "min_cell_size": 6,
+    "max_cell_size": 48,
+    "fit_to_window": false
+  },
+
+  "game": {
+    "vehicles_per_player": 10
+  },
+
+  "strategies": {
+    "player1": [
+      null, null, null, null, null, null, null, null, null, null
+    ],
+    "player2": [
+      null, null, null, null, null, null, null, null, null, null
+    ]
+  }
+}

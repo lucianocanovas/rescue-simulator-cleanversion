@@ -1,12 +1,25 @@
 import pygame
 import os
+import json
 from assets import load_sprite
 from map_manager import MapManager
 from classes.Mine import Mine
 
 # Constants
-WINDOW_SIZE = 800
-CELL_SIZE = 16  # 800 / 50 = 16 pixels per cell
+# Load visualization constants from config.json when available so CELL_SIZE
+# can be adjusted without editing code.
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
+try:
+    with open(CONFIG_PATH, 'r', encoding='utf-8') as _cfg_f:
+        _cfg = json.load(_cfg_f)
+    _viz = _cfg.get('visualization', {}) if isinstance(_cfg, dict) else {}
+    CELL_SIZE = int(_viz.get('cell_size', 16))
+    WINDOW_SIZE = int(_viz.get('window_width', CELL_SIZE * 50))
+except Exception:
+    # Fallbacks
+    CELL_SIZE = 16  # default cell size
+    WINDOW_SIZE = 800
+
 ROWS = 50
 COLUMNS = 50
 
