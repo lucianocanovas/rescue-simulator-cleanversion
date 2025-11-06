@@ -604,3 +604,86 @@ class MapManager:
                     except Exception:
                         pass
                     break
+
+    def is_game_over(self):
+        """Return (True, reason) if the game should end.
+
+        Reasons:
+          - 'no_vehicles': no vehicles remain for either player
+          - 'no_items': there are no items anywhere (on grid or in vehicles)
+          - 'no_reachable_items': there are items on the grid but no available
+            vehicle can find a safe path to any of them
+        """
+        try:
+            from classes.Item import Item, Person
+        except Exception:
+            Item = None
+            Person = None
+
+        # 1) No vehicles
+        total_vehicles = len(getattr(self.player1, 'vehicles', [])) + len(getattr(self.player2, 'vehicles', []))
+        if total_vehicles == 0:
+            return True, 'no_vehicles'
+
+        # 2) No items (on grid or inside vehicles or stored under vehicles)
+        items_on_grid = []
+        for x in range(self.width):
+            for y in range(self.height):
+                obj = self.grid[x][y]
+                try:
+                    if Item is not None and isinstance(obj, Item):
+                        items_on_grid.append((x, y))
+                except Exception:
+                    pass
+
+        items_in_vehicles = 0
+        vehicles = list(getattr(self.player1, 'vehicles', [])) + list(getattr(self.player2, 'vehicles', []))
+        for v in vehicles:
+            try:
+                items_in_vehicles += len(getattr(v, 'load', []))
+            except Exception:
+                pass
+            try:
+                if getattr(v, 'under_item', None) is not None:
+                    items_in_vehicles += 1
+            except Exception:
+                pass
+
+        if (len(items_on_grid) + items_in_vehicles) == 0:
+            return True, 'no_items'
+
+        # 3) Items exist on the map but no available vehicle can reach any of them
+        # If there are no items on the grid (all are inside vehicles), the game is not over.
+        if not items_on_grid:
+            return False, None
+
+        # Use pathfinding utilities to check reachability from each vehicle that
+        # is able to pick items (not full).
+        try:
+            from pathfinding import find_nearest_item, find_nearest_person
+        except Exception:
+            find_nearest_item = None
+            find_nearest_person = None
+
+        for v in vehicles:
+            try:
+                # skip vehicles that are full
+                if len(getattr(v, 'load', [])) >= getattr(v, 'capacity', 0):
+                    continue
+                # choose pathfinder according to vehicle's capabilities
+                if getattr(v, 'only_persons', False):
+                    if find_nearest_person is None:
+                        continue
+                    path = find_nearest_person(self.grid, v.position, self.danger_zones)
+                else:
+                    if find_nearest_item is None:
+                        continue
+                    path = find_nearest_item(self.grid, v.position, self.danger_zones)
+                if path is not None:
+                    # at least one vehicle can reach an on-grid item => not over
+                    return False, None
+            except Exception:
+                continue
+
+        # No vehicle can reach any on-grid item
+        return True, 'no_reachable_items'

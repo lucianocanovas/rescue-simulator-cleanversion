@@ -155,8 +155,28 @@ class Visualization:
     
     def run(self):
         while self.running:
+            # Check for game-over conditions each frame
+            try:
+                over, reason = self.map_manager.is_game_over()
+                if over:
+                    # Print a concise message and stop the loop so the game ends
+                    reason_map = {
+                        'no_vehicles': 'No quedan vehículos. Fin del juego.',
+                        'no_items': 'No quedan objetos en la partida. Fin del juego.',
+                        'no_reachable_items': 'No hay objetos alcanzables por los vehículos. Fin del juego.'
+                    }
+                    print(f"[GAME OVER] {reason_map.get(reason, 'Fin del juego.')}")
+                    print(f"[INFO] Resultado final: Jugador 1: {self.map_manager.player1.points} puntos | Jugador 2: {self.map_manager.player2.points} puntos")
+                    print(f"[INFO] Ganador: {'Jugador 1' if self.map_manager.player1.points > self.map_manager.player2.points else 'Jugador 2' if self.map_manager.player2.points > self.map_manager.player1.points else 'Empate'}")
+                    self.running = False
+                    # Render one last frame so the player sees the final state
+                    self.render()
+                    break
+            except Exception:
+                pass
+
             self.handle_events()
             self.render()
             self.clock.tick(60)
-        
+
         pygame.quit()
