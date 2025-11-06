@@ -7,36 +7,85 @@ import pygame
 class GameEngine:
     def __init__(self, saved_game: str | None = None, saved_turn: int | None = None):
         pygame.init()
-        # Ajustamos la ventana al tamaño del mapa (ancho x alto) usando CELL_SIZE de visualization
-        # Importamos Visualization's CELL_SIZE indirectamente: asumimos 16 por defecto si no está disponible
+        # Pedimos a SDL que centre la ventana en la pantalla cuando la cree.
+        # Debe establecerse antes de llamar a set_mode.
         try:
-            from visualization import CELL_SIZE
-            win_w = 50 * CELL_SIZE
-            win_h = 50 * CELL_SIZE
+            os.environ.setdefault('SDL_VIDEO_CENTERED', '1')    
         except Exception:
-            win_w = 800
-            win_h = 800
-        pygame.display.set_mode((win_w, win_h))
-        
+            pass
+
+        # Necesitamos un modo de vídeo inicial para permitir cargar sprites con convert()
+        # (algunas plataformas requieren un display activo antes de crear Surfaces).
+        try:
+            pygame.display.set_mode((800, 800))
+        except Exception:
+            pass
+
         # Inicializamos el gestor del mapa con las estrategias por defecto
         self.map_manager = MapManager(player1_strategy=PickNearest(), player2_strategy=PickNearest())
 
+        # Si se pasó una partida guardada, intentar cargarla ahora (esto puede cambiar width/height)
         if saved_game:
-            # Intentamos cargar la partida solicitada en el turno indicado
             loaded = self.map_manager.load_game(saved_game, saved_turn if saved_turn is not None else 0)
             if not loaded:
                 print(f"[ERROR] No se pudo cargar la partida especificada: {saved_game}. Se inicia nueva partida.")
                 self.map_manager.new_game()
         else:
-            # Iniciamos una nueva partida
+            # Iniciamos una nueva partida y guardamos el turno 0
             self.map_manager.new_game()
-            # Guardamos el estado inicial (turno 0) para poder volver al inicio
             try:
                 self.map_manager.save_game(0)
             except Exception:
                 pass
-        # Inicializamos la visualización
-        self.visualization = Visualization(self.map_manager)
+
+        # Calculamos un cell_size que permita que el mapa ocupe la mayor parte posible
+        # de la pantalla del usuario, dejando un pequeño margen para barras de sistema.
+        try:
+            info = pygame.display.Info()
+            screen_w, screen_h = info.current_w, info.current_h
+            # Dejamos un margen (p. ej. 150px) para barras y bordes
+            margin = 150
+            usable_w = max(200, screen_w - margin)
+            usable_h = max(200, screen_h - margin)
+            cell_size = max(6, min(usable_w // self.map_manager.width, usable_h // self.map_manager.height))
+            # opcional: limitar tamaño máximo de celda
+            cell_size = min(cell_size, 64)
+        except Exception:
+            # Fallback razonable
+            cell_size = 16
+
+        win_w = int(cell_size * self.map_manager.width)
+        win_h = int(cell_size * self.map_manager.height)
+        pygame.display.set_mode((win_w, win_h))
+
+        # Intento de centrar la ventana de forma más precisa en Windows.
+        # En Windows usamos MoveWindow con el HWND proporcionado por SDL.
+        try:
+            if os.name == 'nt':
+                import ctypes
+                from ctypes import wintypes
+
+                info = pygame.display.get_wm_info()
+                # Dependiendo de la plataforma/SDL, la key puede llamarse 'window' o 'hwnd'
+                hwnd = info.get('window') or info.get('hwnd')
+                if hwnd:
+                    # Obtener el área de trabajo (excluye taskbar) para centrar correctamente
+                    SPI_GETWORKAREA = 0x0030
+                    rect = wintypes.RECT()
+                    ok = ctypes.windll.user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0)
+                    if ok:
+                        work_w = rect.right - rect.left
+                        work_h = rect.bottom - rect.top
+                        x = rect.left + max(0, (work_w - win_w) // 2)
+                        y = rect.top + max(0, (work_h - win_h) // 2)
+                        # Mover la ventana al centro del área de trabajo
+                        ctypes.windll.user32.MoveWindow(hwnd, int(x), int(y), int(win_w), int(win_h), True)
+        except Exception:
+            # Fall back silencioso: SDL centering o gestor de ventanas decidirá la posición
+            pass
+
+        # Inicializamos la visualización pasando el tamaño de celda calculado
+        self.visualization = Visualization(self.map_manager, cell_size=cell_size)
 
     def start(self):
         self.visualization.run()

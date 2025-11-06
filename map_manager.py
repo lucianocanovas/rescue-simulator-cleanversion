@@ -1,13 +1,7 @@
-"""Gestor del mapa y estado del juego.
-
-Contiene la lógica para crear nuevas partidas, guardar/cargar estados por turno,
-gestionar minas, vehículos y la resolución de colisiones.
-"""
-
 import random
-import pickle
-import os
-from datetime import datetime
+import pickle      # Biblioteca para guardar partidas
+import os          # Para operaciones con archivos y directorios
+from datetime import datetime  # Para agregar timestamp a los archivos guardados
 from classes.Mine import Mine, Mine_O1, Mine_O2, Mine_T1, Mine_T2, Mine_G1
 from classes.Item import Person, Weapon, Clothing, Food, Heal
 from classes.Vehicle import Vehicle, Car, Jeep, Motorcycle, Truck
@@ -16,6 +10,7 @@ from strategies import Strategy
 
 class MapManager:
     def __init__(self, player1_strategy: Strategy, player2_strategy: Strategy, width=50, height=50):
+        # Player expects (name, strategy)
         self.player1 = Player("Player 1", player1_strategy)
         self.player2 = Player("Player 2", player2_strategy)
         self.width = width
@@ -23,7 +18,7 @@ class MapManager:
         self.grid = [[None for _ in range(self.height)] for _ in range(self.width)]
         self.mines = []
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
-        self.collision_policy = 'allow_crash'
+        self.collision_policy = 'prefer_move'
         self.current_game_folder = self._get_next_game_folder()  # Carpeta para la partida actual
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
@@ -35,6 +30,7 @@ class MapManager:
         return (x, y)
 
     def clear(self):
+        """Vacía la grilla y resetea todas las estructuras relacionadas"""
         # Vaciamos la grilla
         for x in range(self.width):
             for y in range(self.height):
@@ -82,224 +78,175 @@ class MapManager:
         return new_path
 
     def save_game(self, turn_number):
-        """Save a serializable snapshot of the game state.
-
-        We avoid pickling pygame Surfaces by converting objects to simple
-        dictionaries that contain only primitive types (strings, numbers,
-        tuples, lists). Returns the filename written.
-        """
-        def serialize_item(item):
-            return {
-                'type': item.__class__.__name__,
-                'position': item.position,
-                'value': getattr(item, 'value', None)
-            }
-
-        def serialize_vehicle(v):
-            return {
-                'type': v.__class__.__name__,
-                'position': v.position,
-                'capacity': v.capacity,
-                'only_persons': v.only_persons,
-                # Persist planned path and state so loading returns exact state
-                'path': list(getattr(v, 'path', [])),
-                'state': getattr(v, 'state', 'idle'),
-                'load': [serialize_item(it) for it in getattr(v, 'load', [])],
-                # If a vehicle is standing on an item (not picked), serialize it
-                'under_item': serialize_item(getattr(v, 'under_item', None)) if getattr(v, 'under_item', None) is not None else None
-            }
-
-        def serialize_mine(m):
-            return {
-                'type': m.__class__.__name__,
-                'position': m.position,
-                'x_radius': getattr(m, 'x_radius', None),
-                'y_radius': getattr(m, 'y_radius', None)
-            }
-
+        # Creamos un diccionario con todo el estado del juego
         game_state = {
-            'turn': turn_number,
-            'width': self.width,
-            'height': self.height,
-            'danger_zones': self.danger_zones,
-            'player1': {
-                'points': getattr(self.player1, 'points', 0),
-                'vehicles': [serialize_vehicle(v) for v in self.player1.vehicles]
+            'turn': turn_number,            # Número del turno actual
+            'width': self.width,            # Ancho del tablero
+            'height': self.height,          # Alto del tablero
+            'danger_zones': self.danger_zones,  # Zonas de peligro actuales
+            
+            # Guardamos solo las posiciones y tipos de objetos en la grilla
+            # Convertimos cada objeto a su nombre de clase para evitar problemas de serialización
+            'grid_state': [
+                [(type(obj).__name__ if obj is not None else None) for obj in row]
+                for row in self.grid
+            ],
+            
+            # Guardamos la información esencial de los vehículos de cada jugador
+            'vehicles': {
+                'player1': [
+                    {
+                        'type': type(v).__name__,        # Tipo de vehículo (Car, Truck, etc)
+                        'position': v.position,           # Posición actual del vehículo
+                        'items': [(type(item).__name__, item.position) for item in v.load]  # Items que lleva el vehículo
+                    } for v in self.player1.vehicles
+                ],
+                'player2': [
+                    {
+                        'type': type(v).__name__,        # Tipo de vehículo (Car, Truck, etc)
+                        'position': v.position,           # Posición actual del vehículo
+                        'items': [(type(item).__name__, item.position) for item in v.load]  # Items que lleva el vehículo
+                    } for v in self.player2.vehicles
+                ]
             },
-            'player2': {
-                'points': getattr(self.player2, 'points', 0),
-                'vehicles': [serialize_vehicle(v) for v in self.player2.vehicles]
-            },
-            'mines': [serialize_mine(m) for m in self.mines],
-            'items': []
+            
+            # Guardamos la información de las minas
+            'mines': [
+                {
+                    'type': type(mine).__name__,     # Tipo de mina
+                    'position': mine.position,        # Posición de la mina
+                    'x_radius': mine.x_radius,       # Radio de explosión en X
+                    'y_radius': mine.y_radius        # Radio de explosión en Y
+                } for mine in self.mines
+            ],
+            
+            # Guardamos los items que están en el mapa (no dentro de vehículos)
+            'items': [
+                {
+                    'type': type(obj).__name__,
+                    'position': (x, y)
+                }
+                for x in range(self.width)
+                for y in range(self.height)
+                for obj in [self.grid[x][y]]
+                if obj is not None and not any(obj in v.load for v in (self.player1.vehicles + self.player2.vehicles)) and not isinstance(obj, (Vehicle, Mine))
+            ],
+
+            # Guardamos los puntos de los jugadores
+            'scores': {
+                'player1': getattr(self.player1, 'points', 0),  # Puntos del jugador 1
+                'player2': getattr(self.player2, 'points', 0)   # Puntos del jugador 2
+            }
         }
-
-        # collect standalone items from the grid (not part of vehicles or mines)
-        for x in range(self.width):
-            for y in range(self.height):
-                obj = self.grid[x][y]
-                # skip vehicles and mines
-                if isinstance(obj, Vehicle) or isinstance(obj, Mine):
-                    continue
-                if obj is not None:
-                    # assume it's an Item
-                    try:
-                        from classes.Item import Item as _Item
-                    except Exception:
-                        _Item = None
-                    if _Item is not None and isinstance(obj, _Item):
-                        game_state['items'].append(serialize_item(obj))
-
-        # ensure current game folder exists
+        
+        # Creamos la carpeta de la partida si no existe
         if not os.path.exists(self.current_game_folder):
-            os.makedirs(self.current_game_folder, exist_ok=True)
-
-        # Save with a deterministic per-turn filename so visualization can load it
-        filename = os.path.join(self.current_game_folder, f"turno_{turn_number}.pkl")
-        with open(filename, 'wb') as f:
-            pickle.dump(game_state, f)
-
+            os.makedirs(self.current_game_folder)
+            
+        # Guardamos el turno con número secuencial
+        filename = f"{self.current_game_folder}/turno_{turn_number}.pkl"
+        
+        # Guardamos el estado del juego usando pickle en modo binario
+        with open(filename, 'wb') as f:  # 'wb' = write binary
+            pickle.dump(game_state, f)    # Serializamos el estado del juego
+        
         return filename
 
     def load_game(self, filename: str, turn: int):
-        """Load a previously saved game_state created by save_game.
-
-        This rebuilds mines, items and vehicles from the serialized data.
-        """
         try:
-            with open(filename, 'rb') as f:
-                game_state = pickle.load(f)
-        except Exception as e:
-            print(f"[ERROR] No se pudo abrir el archivo de guardado: {e}")
-            return False
-
-        try:
-            # Basic properties
-            self.width = game_state.get('width', self.width)
-            self.height = game_state.get('height', self.height)
-
-            # Clear current state
-            self.clear()
-
-            # Restore danger zones if present
-            self.danger_zones = game_state.get('danger_zones', self.danger_zones)
-
-            # Helper to recreate items
-            def create_item(item_data):
-                t = item_data.get('type')
-                pos = item_data.get('position')
-                if t == 'Person':
-                    return Person(pos)
-                if t == 'Weapon':
-                    return Weapon(pos)
-                if t == 'Clothing':
-                    return Clothing(pos)
-                if t == 'Food':
-                    return Food(pos)
-                if t == 'Heal':
-                    return Heal(pos)
-                return None
-
-            # Helper to recreate vehicles
-            def create_vehicle(vdata, team):
-                t = vdata.get('type')
-                pos = tuple(vdata.get('position', (0, 0)))
-                cls = None
-                if t == 'Truck':
-                    cls = Truck
-                elif t == 'Jeep':
-                    cls = Jeep
-                elif t == 'Car':
-                    cls = Car
-                elif t == 'Motorcycle':
-                    cls = Motorcycle
-                if cls is None:
-                    return None
-                v = cls(team, pos)
-                # restore load if present (items carried by vehicle)
-                v.load = []
-                for it in vdata.get('load', []):
-                    obj = create_item(it)
-                    if obj is not None:
-                        # Items inside vehicles shouldn't be placed on the grid
-                        # their position can remain as metadata.
-                        v.load.append(obj)
-                # restore planned path and state so the vehicle returns
-                # exactly to its previous behavior
-                try:
-                    v.path = [tuple(p) for p in vdata.get('path', [])]
-                except Exception:
-                    v.path = []
-                v.state = vdata.get('state', 'idle')
-                # restore item that was under the vehicle (if any)
-                try:
-                    under_serial = vdata.get('under_item')
-                    if under_serial:
-                        itm = create_item(under_serial)
-                        if itm is not None:
-                            # don't place on grid yet; keep as under_item
-                            v.under_item = itm
-                except Exception:
-                    v.under_item = None
-                return v
-
-            # Restore mines
-            mines_data = game_state.get('mines', [])
-            for m in mines_data:
-                mtype = m.get('type')
-                pos = tuple(m.get('position', (0, 0)))
-                mine_obj = None
-                if mtype == 'Mine_O1':
-                    mine_obj = Mine_O1(pos)
-                elif mtype == 'Mine_O2':
-                    mine_obj = Mine_O2(pos)
-                elif mtype == 'Mine_T1':
-                    mine_obj = Mine_T1(pos)
-                elif mtype == 'Mine_T2':
-                    mine_obj = Mine_T2(pos)
-                elif mtype == 'Mine_G1':
-                    mine_obj = Mine_G1(pos)
-                if mine_obj is not None:
-                    self.mines.append(mine_obj)
-                    x, y = mine_obj.position
-                    self.grid[x][y] = mine_obj
-
-            # Restore standalone items
-            for it in game_state.get('items', []):
-                obj = create_item(it)
-                if obj is not None:
-                    x, y = obj.position
-                    self.grid[x][y] = obj
-
-            # Restore player points
+            # Primero intentamos cargar el archivo para asegurarnos que existe y es válido
+            with open(filename, 'rb') as f:  # 'rb' = read binary
+                game_state = pickle.load(f)  # Deserializamos el estado del juego
+            
+            # Si la carga fue exitosa, ahora sí limpiamos y restauramos
+            self.clear()  # Limpiamos el estado actual del juego solo si pudimos cargar
+            # Ajustamos la carpeta de la partida actual al directorio donde está el archivo
             try:
-                self.player1.points = game_state.get('player1', {}).get('points', 0)
-                self.player2.points = game_state.get('player2', {}).get('points', 0)
+                self.current_game_folder = os.path.dirname(os.path.abspath(filename))
             except Exception:
                 pass
+            # Aseguramos listas vacías de vehículos para reconstruir desde el guardado
+            try:
+                self.player1.vehicles = []
+            except Exception:
+                pass
+            try:
+                self.player2.vehicles = []
+            except Exception:
+                pass
+            
+            # Restauramos las dimensiones del tablero
+            self.width = game_state['width']     # Restauramos ancho
+            self.height = game_state['height']    # Restauramos alto
+            
+            # Restauramos las zonas de peligro
+            self.danger_zones = game_state['danger_zones']  # Restauramos matriz de zonas peligrosas
+            
+            # Recreamos los vehículos del jugador 1
+            for vehicle_data in game_state['vehicles']['player1']:
 
-            # Restore vehicles for each player
-            self.player1.vehicles = []
-            self.player2.vehicles = []
-            for vdata in game_state.get('player1', {}).get('vehicles', []):
-                v = create_vehicle(vdata, self.player1)
-                if v is not None:
-                    self.player1.add_vehicle(v)
-                    x, y = v.position
-                    self.grid[x][y] = v
-            for vdata in game_state.get('player2', {}).get('vehicles', []):
-                v = create_vehicle(vdata, self.player2)
-                if v is not None:
-                    self.player2.add_vehicle(v)
-                    x, y = v.position
-                    self.grid[x][y] = v
+                # Obtenemos la clase del vehículo por su nombre y lo creamos
+                vehicle_class = globals()[vehicle_data['type']]
+                vehicle = vehicle_class(self.player1, vehicle_data['position'])
+                # Restauramos los items que llevaba el vehículo
+                for item_type, item_pos in vehicle_data['items']:
+                    item_class = globals().get(item_type)
+                    if item_class is None:
+                        continue
+                    item = item_class(item_pos)
+                    vehicle.load.append(item)
+                self.player1.add_vehicle(vehicle)
+                self.grid[vehicle.position[0]][vehicle.position[1]] = vehicle
+            
+            # Recreamos los vehículos del jugador 2
+            for vehicle_data in game_state['vehicles']['player2']:
+                # Obtenemos la clase del vehículo por su nombre y lo creamos
+                vehicle_class = globals()[vehicle_data['type']]
+                vehicle = vehicle_class(self.player2, vehicle_data['position'])
+                # Restauramos los items que llevaba el vehículo
+                for item_type, item_pos in vehicle_data['items']:
+                    item_class = globals().get(item_type)
+                    if item_class is None:
+                        continue
+                    item = item_class(item_pos)
+                    vehicle.load.append(item)
+                self.player2.add_vehicle(vehicle)
+                self.grid[vehicle.position[0]][vehicle.position[1]] = vehicle
+            
+            # Recreamos las minas en el tablero
+            self.mines = []
+            for mine_data in game_state['mines']:
+                # Creamos cada mina con su tipo y posición correctos
+                mine_class = globals()[mine_data['type']]
+                mine = mine_class(mine_data['position'])
+                mine.x_radius = mine_data['x_radius']
+                mine.y_radius = mine_data['y_radius']
+                self.mines.append(mine)
+                self.grid[mine.position[0]][mine.position[1]] = mine
 
-            # Update danger zones
+            # Recreamos los items sueltos en el mapa (los que no estaban dentro de vehículos)
+            for item_data in game_state.get('items', []):
+                item_type = item_data.get('type')
+                pos = item_data.get('position')
+                item_class = globals().get(item_type)
+                if item_class is None or pos is None:
+                    continue
+                obj = item_class(pos)
+                x, y = pos
+                # Solo colocamos el item si la casilla está vacía (no sobreescribimos vehículos/minas)
+                if 0 <= x < self.width and 0 <= y < self.height and self.grid[x][y] is None:
+                    self.grid[x][y] = obj
+
+            # Actualizamos las zonas de peligro ahora que minas están cargadas
             self.update_danger_zones()
-
+            
+            # Restauramos los puntos de cada jugador
+            self.player1.points = game_state['scores']['player1']  # Puntos jugador 1
+            self.player2.points = game_state['scores']['player2']  # Puntos jugador 2
+            
             return True
         except Exception as e:
-            print(f"[ERROR] Error al reconstruir el estado de la partida: {e}")
+            print(f"Error al cargar el juego: {e}")
             return False
 
     def new_game(self):
@@ -388,6 +335,7 @@ class MapManager:
         try:
             mine_positions_before = [m.position for m in self.mines]
             mine_radii_before = [(m.position, getattr(m, 'x_radius', None), getattr(m, 'y_radius', None)) for m in self.mines]
+            print(f"[DEBUG] next_turn start: turn={current_turn}, mines_before={len(self.mines)} positions={mine_positions_before} radii={mine_radii_before}")
         except Exception:
             pass
 
@@ -399,7 +347,7 @@ class MapManager:
                 if isinstance(mine, Mine_G1):
                     mine.toggle()
 
-    # FASE DE PLANIFICACIÓN: pedir a cada vehículo que planifique su siguiente paso
+        # PLAN PHASE: ask every vehicle to plan its path (does not modify grid)
         vehicles = list(self.player1.vehicles) + list(self.player2.vehicles)
         for v in vehicles:
             try:
@@ -411,7 +359,7 @@ class MapManager:
                 except Exception:
                     pass
 
-    # RECOGIDA DE MOVIMIENTOS INTENDIDOS
+        # COLLECT INTENDED MOVES
         target_map: dict[tuple[int, int], list] = {}
         intent_by_vehicle = {}
         for v in vehicles:
@@ -424,7 +372,7 @@ class MapManager:
                 target_map.setdefault(nxt, []).append(v)
                 intent_by_vehicle[v] = nxt
 
-    # RESOLVER CONFLICTOS ENTRE VEHÍCULOS QUE QUIEREN LA MISMA CASILLA
+        # RESOLVE CONFLICTS
         for target, vs in list(target_map.items()):
             if len(vs) <= 1:
                 continue
@@ -443,7 +391,7 @@ class MapManager:
                     except Exception:
                         pass
 
-    # FASE DE EJECUCIÓN: realizar los movimientos aprobados
+        # EXECUTE PHASE: perform approved moves
         for v, target in list(intent_by_vehicle.items()):
             try:
                 v.execute_move(self, target)
@@ -454,17 +402,18 @@ class MapManager:
                 except Exception:
                     pass
 
-    # Recalcular zonas de peligro por si alguna mina cambió de estado
+        # Recompute danger zones in case mines moved/teleported
         self.update_danger_zones()
 
         # DEBUG: registrar estado de minas despues de ejecutar el turno
         try:
             mine_positions_after = [m.position for m in self.mines]
             mine_radii_after = [(m.position, getattr(m, 'x_radius', None), getattr(m, 'y_radius', None)) for m in self.mines]
+            print(f"[DEBUG] next_turn end: turn={current_turn}, mines_after={len(self.mines)} positions={mine_positions_after} radii={mine_radii_after}")
         except Exception:
             pass
 
-    # Después del movimiento, gestionar colisiones
+        # After movement, handle collisions
         self.check_collisions()
 
         # Unload at base
@@ -484,27 +433,9 @@ class MapManager:
             if len(vs) > 1:
                 x, y = pos
                 for v in vs:
-                    # If a vehicle had an item stored under it, restore it to the grid
-                    try:
-                        if getattr(v, 'under_item', None) is not None:
-                            itm = v.under_item
-                            try:
-                                itm.position = (x, y)
-                                self.grid[x][y] = itm
-                            except Exception:
-                                pass
-                            v.under_item = None
-                    except Exception:
-                        pass
                     if v in v.team.vehicles:
                         v.team.vehicles.remove(v)
-                # If no item was restored above, ensure grid cell is cleared
-                if self.grid[x][y] is None:
-                    self.grid[x][y] = None
-                # Registro de colisión: imprimimos información consistente en español
-                print(f"[COLISIÓN] Posición: {pos} — Vehículos eliminados: {len(vs)}")
-                detalle_vehiculos = [f"{v.__class__.__name__} (equipo: {v.team.name})" for v in vs]
-                print(f"[COLISIÓN] Vehículos involucrados: {detalle_vehiculos}")
+                self.grid[x][y] = None
 
         # Collect all mines on the grid
         mines = []
@@ -524,27 +455,13 @@ class MapManager:
             for mine in mines:
                 mine_x, mine_y = mine.position
                 if abs(vehicle_x - mine_x) <= mine.x_radius and abs(vehicle_y - mine_y) <= mine.y_radius:
-                    # If vehicle had an item under it, restore that item to the grid
-                    try:
-                        if getattr(vehicle, 'under_item', None) is not None:
-                            itm = vehicle.under_item
-                            try:
-                                itm.position = (vehicle_x, vehicle_y)
-                                self.grid[vehicle_x][vehicle_y] = itm
-                            except Exception:
-                                pass
-                            vehicle.under_item = None
-                    except Exception:
-                        pass
                     try:
                         if vehicle in vehicle.team.vehicles:
                             vehicle.team.vehicles.remove(vehicle)
                     except Exception:
                         pass
                     try:
-                        # If no item was restored above, ensure the cell is cleared
-                        if self.grid[vehicle_x][vehicle_y] is None:
-                            self.grid[vehicle_x][vehicle_y] = None
+                        self.grid[vehicle_x][vehicle_y] = None
                     except Exception:
                         pass
                     break

@@ -17,10 +17,12 @@ RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 
 class Visualization:
-    def __init__(self, map_manager: MapManager):
+    def __init__(self, map_manager: MapManager, cell_size: int | None = None):
         self.map_manager = map_manager
+        # Permitir que la llamada superior pase un cell_size calculado; si no, usar el default
+        self.cell_size = cell_size or CELL_SIZE
         # Calcular tamaño de ventana dinámicamente con la resolución del mapa
-        self.window_size = self.map_manager.width * CELL_SIZE
+        self.window_size = int(self.map_manager.width * self.cell_size)
         # Asegurarse de que la superficie existe (GameEngine debería haber llamado set_mode)
         self.screen = pygame.display.get_surface()
         self.clock = pygame.time.Clock()
@@ -29,9 +31,9 @@ class Visualization:
         pygame.display.set_caption("Rescue Simulator")
         
     def draw_grid(self):
-        for x in range(0, self.window_size, CELL_SIZE):
+        for x in range(0, self.window_size, self.cell_size):
             pygame.draw.line(self.screen, GRAY, (x, 0), (x, self.window_size))
-        for y in range(0, self.window_size, CELL_SIZE):
+        for y in range(0, self.window_size, self.cell_size):
             pygame.draw.line(self.screen, GRAY, (0, y), (self.window_size, y))
     
     def draw_objects(self):
@@ -40,28 +42,34 @@ class Visualization:
             for y in range(self.map_manager.height):
                 obj = self.map_manager.grid[x][y]
                 if obj is not None:
-                    pixel_x = x * CELL_SIZE
-                    pixel_y = y * CELL_SIZE
-                    scaled_sprite = pygame.transform.scale(obj.sprite, (CELL_SIZE, CELL_SIZE))
-                    self.screen.blit(scaled_sprite, (pixel_x, pixel_y))
+                    pixel_x = x * self.cell_size
+                    pixel_y = y * self.cell_size
+                    # Algunos objetos pueden no tener sprite (robustez)
+                    try:
+                        if getattr(obj, 'sprite', None) is not None:
+                            scaled_sprite = pygame.transform.scale(obj.sprite, (self.cell_size, self.cell_size))
+                            self.screen.blit(scaled_sprite, (pixel_x, pixel_y))
+                    except Exception:
+                        # Si el escalado falla por cualquier motivo, lo ignoramos para no bloquear el render
+                        pass
         
         # Después dibujamos los rectángulos rojos de las minas encima
         for x in range(self.map_manager.width):
             for y in range(self.map_manager.height):
                 obj = self.map_manager.grid[x][y]
                 if isinstance(obj, Mine):
-                    radius_x = obj.x_radius * CELL_SIZE
-                    radius_y = obj.y_radius * CELL_SIZE
-                    center_x = x * CELL_SIZE + CELL_SIZE // 2
-                    center_y = y * CELL_SIZE + CELL_SIZE // 2
+                    radius_x = int(obj.x_radius * self.cell_size)
+                    radius_y = int(obj.y_radius * self.cell_size)
+                    center_x = x * self.cell_size + self.cell_size // 2
+                    center_y = y * self.cell_size + self.cell_size // 2
                     # Dibujar rectángulo con grosor=2 para mejor visibilidad
                     pygame.draw.rect(self.screen, RED, (center_x - radius_x, center_y - radius_y, radius_x * 2, radius_y * 2), 2)
     
     def draw_bases(self):
         # Draw Player 1 Base
-        pygame.draw.rect(self.screen, BLUE, (0, 0, CELL_SIZE, CELL_SIZE * self.map_manager.height))
+        pygame.draw.rect(self.screen, BLUE, (0, 0, self.cell_size, self.cell_size * self.map_manager.height))
         # Draw Player 2 Base
-        pygame.draw.rect(self.screen, RED, (self.window_size - CELL_SIZE, 0, CELL_SIZE, CELL_SIZE * self.map_manager.height))
+        pygame.draw.rect(self.screen, RED, (self.window_size - self.cell_size, 0, self.cell_size, self.cell_size * self.map_manager.height))
 
     def draw_player_info(self):
         font = pygame.font.SysFont(None, 40)
