@@ -25,6 +25,7 @@ class MapManager:
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
         self.collision_policy = 'allow_crash'
         self.current_game_folder = self._get_next_game_folder()  # Carpeta para la partida actual
+        self.explosions = []
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
         x = random.randint(margin_x, self.width - 1 - margin_x)
@@ -122,6 +123,9 @@ class MapManager:
             'width': self.width,
             'height': self.height,
             'danger_zones': self.danger_zones,
+            # Persistir explosiones visuales para que al cargar un turno
+            # previo se restaure su visibilidad correctamente.
+            'explosions': [ {'pos': e.get('pos'), 'ttl': int(e.get('ttl',0))} for e in getattr(self, 'explosions', []) ],
             'player1': {
                 'points': getattr(self.player1, 'points', 0),
                 'vehicles': [serialize_vehicle(v) for v in self.player1.vehicles]
@@ -260,6 +264,19 @@ class MapManager:
                 elif mtype == 'Mine_G1':
                     mine_obj = Mine_G1(pos)
                 if mine_obj is not None:
+                    # If the saved data contained explicit radii (e.g. Mine_G1 toggled
+                    # to 0), restore those values so loading a previous turn keeps
+                    # the mine in the same active/inactive state.
+                    try:
+                        saved_x = m.get('x_radius', None)
+                        saved_y = m.get('y_radius', None)
+                        if saved_x is not None:
+                            mine_obj.x_radius = int(saved_x)
+                        if saved_y is not None:
+                            mine_obj.y_radius = int(saved_y)
+                    except Exception:
+                        # ignore and keep defaults if something goes wrong
+                        pass
                     self.mines.append(mine_obj)
                     x, y = mine_obj.position
                     self.grid[x][y] = mine_obj
@@ -270,6 +287,17 @@ class MapManager:
                 if obj is not None:
                     x, y = obj.position
                     self.grid[x][y] = obj
+
+            # Restore explosions visual state (so que al retroceder desaparezcan)
+            try:
+                self.explosions = []
+                for ex in game_state.get('explosions', []):
+                    pos = tuple(ex.get('pos')) if ex.get('pos') is not None else None
+                    ttl = int(ex.get('ttl', 0))
+                    if pos is not None and ttl > 0:
+                        self.explosions.append({'pos': pos, 'ttl': ttl})
+            except Exception:
+                self.explosions = []
 
             # Restore player points
             try:
@@ -394,7 +422,7 @@ class MapManager:
         # Alternador de minas tipo G1: no queremos que ocurra en el turno inicial (0).
         # Aplicamos el toggle cuando el siguiente turno vaya a ser múltiplo de 7,
         # es decir, al avanzar hacia un turno 7,14,21,...
-        if (current_turn + 1) % 7 == 0:
+        if (current_turn + 1) % 5 == 0:
             for mine in self.mines:
                 if isinstance(mine, Mine_G1):
                     mine.toggle()
@@ -467,6 +495,17 @@ class MapManager:
     # Después del movimiento, gestionar colisiones
         self.check_collisions()
 
+        # Reducir TTL de explosiones (aparecen N turnos)
+        try:
+            for ex in list(self.explosions):
+                try:
+                    ex['ttl'] = int(ex.get('ttl', 0)) - 1
+                except Exception:
+                    ex['ttl'] = 0
+            self.explosions = [e for e in self.explosions if e.get('ttl', 0) > 0]
+        except Exception:
+            pass
+
         # Unload at base
         for vehicle in list(self.player1.vehicles) + list(self.player2.vehicles):
             vehicle.unload_if_at_base(self)
@@ -483,6 +522,11 @@ class MapManager:
         for pos, vs in list(pos_map.items()):
             if len(vs) > 1:
                 x, y = pos
+                # Registrar una explosión visual cuando hay colisión (3 turnos)
+                try:
+                    self.explosions.append({'pos': (x, y), 'ttl': 3})
+                except Exception:
+                    pass
                 for v in vs:
                     # If a vehicle had an item stored under it, restore it to the grid
                     try:
@@ -524,26 +568,38 @@ class MapManager:
             for mine in mines:
                 mine_x, mine_y = mine.position
                 if abs(vehicle_x - mine_x) <= mine.x_radius and abs(vehicle_y - mine_y) <= mine.y_radius:
-                    # If vehicle had an item under it, restore that item to the grid
+                    # Restaurar cualquier item que estuviera bajo el vehículo
+                    restored_item = False
                     try:
                         if getattr(vehicle, 'under_item', None) is not None:
                             itm = vehicle.under_item
                             try:
                                 itm.position = (vehicle_x, vehicle_y)
                                 self.grid[vehicle_x][vehicle_y] = itm
+                                restored_item = True
                             except Exception:
-                                pass
+                                restored_item = False
                             vehicle.under_item = None
                     except Exception:
+                        restored_item = False
+
+                    # Registrar una explosión visual por destrucción en mina (3 turnos)
+                    try:
+                        self.explosions.append({'pos': (vehicle_x, vehicle_y), 'ttl': 3})
+                    except Exception:
                         pass
+
+                    # Eliminar vehículo del equipo
                     try:
                         if vehicle in vehicle.team.vehicles:
                             vehicle.team.vehicles.remove(vehicle)
                     except Exception:
                         pass
+
+                    # Si no se restauró un item bajo el vehículo, limpiar la celda para
+                    # evitar que el vehículo permanezca visible en el grid
                     try:
-                        # If no item was restored above, ensure the cell is cleared
-                        if self.grid[vehicle_x][vehicle_y] is None:
+                        if not restored_item:
                             self.grid[vehicle_x][vehicle_y] = None
                     except Exception:
                         pass

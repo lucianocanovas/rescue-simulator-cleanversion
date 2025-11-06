@@ -1,5 +1,6 @@
 import pygame
 import os
+from assets import load_sprite
 from map_manager import MapManager
 from classes.Mine import Mine
 
@@ -15,6 +16,7 @@ GRAY = (200, 200, 200)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
+ORANGE = (255, 160, 0)
 
 class Visualization:
     def __init__(self, map_manager: MapManager):
@@ -27,6 +29,11 @@ class Visualization:
         self.current_turn = 0
         self.running = True
         pygame.display.set_caption("Rescue Simulator")
+        # Cargar sprite de explosión una vez
+        try:
+            self.explosion_sprite = load_sprite('explosion.png')
+        except Exception:
+            self.explosion_sprite = None
         
     def draw_grid(self):
         for x in range(0, self.window_size, CELL_SIZE):
@@ -56,6 +63,34 @@ class Visualization:
                     center_y = y * CELL_SIZE + CELL_SIZE // 2
                     # Dibujar rectángulo con grosor=2 para mejor visibilidad
                     pygame.draw.rect(self.screen, RED, (center_x - radius_x, center_y - radius_y, radius_x * 2, radius_y * 2), 2)
+
+    def draw_explosions(self):
+        # Dibuja círculos en las posiciones registradas como explosiones
+        try:
+            for ex in getattr(self.map_manager, 'explosions', []):
+                pos = ex.get('pos')
+                if not pos:
+                    continue
+                x, y = pos
+                # Si disponemos del sprite, dibujarlo centrado ocupando 3x3 celdas
+                if self.explosion_sprite is not None:
+                    try:
+                        size_px = CELL_SIZE * 3
+                        sprite_scaled = pygame.transform.scale(self.explosion_sprite, (size_px, size_px))
+                        # Top-left para centrar 3x3 sobre la casilla (x,y)
+                        top_left_x = x * CELL_SIZE - CELL_SIZE
+                        top_left_y = y * CELL_SIZE - CELL_SIZE
+                        self.screen.blit(sprite_scaled, (top_left_x, top_left_y))
+                        continue
+                    except Exception:
+                        pass
+                # Fallback: dibujar círculo naranja si no hay sprite
+                center_x = x * CELL_SIZE + CELL_SIZE // 2
+                center_y = y * CELL_SIZE + CELL_SIZE // 2
+                radius = max(4, CELL_SIZE // 2)
+                pygame.draw.circle(self.screen, ORANGE, (center_x, center_y), radius)
+        except Exception:
+            pass
     
     def draw_bases(self):
         # Draw Player 1 Base
@@ -81,6 +116,7 @@ class Visualization:
         self.screen.fill(WHITE)
         self.draw_bases()
         self.draw_objects()
+        self.draw_explosions()
         self.draw_grid()
         self.draw_player_info()
         pygame.display.flip()
