@@ -94,14 +94,12 @@ class Visualization:
                     if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
                         self.current_turn += 1
 
-                        # Guardamos el estado actual del juego antes de avanzar
-                        saved_file = self.map_manager.save_game(self.current_turn)
-                        print(f"[INFO] Juego guardado en: {saved_file}")
-                        # Avanzamos la simulación un paso (MapManager maneja el movimiento)
-
+                        # Ejecutamos la simulación para el nuevo turno y luego guardamos
+                        # de modo que `turno_N.pkl` refleje el estado DESPUÉS de N turnos.
                         self.map_manager.next_turn(self.current_turn)
-                        
-                        print(f"[INFO] Avanzando al turno: {self.current_turn}")
+
+                        saved_file = self.map_manager.save_game(self.current_turn)
+                        print(f"[INFO] Avanzado al turno: {self.current_turn} — guardado en: {saved_file}")
                     pass
                 if event.key == pygame.K_LEFT:
                     if self.current_turn > 0:
