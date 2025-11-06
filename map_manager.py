@@ -1,10 +1,13 @@
+"""Gestor del mapa y estado del juego.
+
+Contiene la lógica para crear nuevas partidas, guardar/cargar estados por turno,
+gestionar minas, vehículos y la resolución de colisiones.
+"""
+
 import random
 import pickle
 import os
 from datetime import datetime
-import pickle      # Biblioteca para guardar partidas
-import os          # Para operaciones con archivos y directorios
-from datetime import datetime  # Para agregar timestamp a los archivos guardados
 from classes.Mine import Mine, Mine_O1, Mine_O2, Mine_T1, Mine_T2, Mine_G1
 from classes.Item import Person, Weapon, Clothing, Food, Heal
 from classes.Vehicle import Vehicle, Car, Jeep, Motorcycle, Truck
@@ -98,7 +101,12 @@ class MapManager:
                 'position': v.position,
                 'capacity': v.capacity,
                 'only_persons': v.only_persons,
-                'load': [serialize_item(it) for it in getattr(v, 'load', [])]
+                # Persist planned path and state so loading returns exact state
+                'path': list(getattr(v, 'path', [])),
+                'state': getattr(v, 'state', 'idle'),
+                'load': [serialize_item(it) for it in getattr(v, 'load', [])],
+                # If a vehicle is standing on an item (not picked), serialize it
+                'under_item': serialize_item(getattr(v, 'under_item', None)) if getattr(v, 'under_item', None) is not None else None
             }
 
         def serialize_mine(m):
@@ -162,7 +170,7 @@ class MapManager:
             with open(filename, 'rb') as f:
                 game_state = pickle.load(f)
         except Exception as e:
-            print(f"Error al abrir el archivo de guardado: {e}")
+            print(f"[ERROR] No se pudo abrir el archivo de guardado: {e}")
             return False
 
         try:
@@ -208,12 +216,31 @@ class MapManager:
                 if cls is None:
                     return None
                 v = cls(team, pos)
-                # restore load if present
+                # restore load if present (items carried by vehicle)
                 v.load = []
                 for it in vdata.get('load', []):
                     obj = create_item(it)
                     if obj is not None:
+                        # Items inside vehicles shouldn't be placed on the grid
+                        # their position can remain as metadata.
                         v.load.append(obj)
+                # restore planned path and state so the vehicle returns
+                # exactly to its previous behavior
+                try:
+                    v.path = [tuple(p) for p in vdata.get('path', [])]
+                except Exception:
+                    v.path = []
+                v.state = vdata.get('state', 'idle')
+                # restore item that was under the vehicle (if any)
+                try:
+                    under_serial = vdata.get('under_item')
+                    if under_serial:
+                        itm = create_item(under_serial)
+                        if itm is not None:
+                            # don't place on grid yet; keep as under_item
+                            v.under_item = itm
+                except Exception:
+                    v.under_item = None
                 return v
 
             # Restore mines
@@ -272,7 +299,7 @@ class MapManager:
 
             return True
         except Exception as e:
-            print(f"Error al reconstruir el estado de la partida: {e}")
+            print(f"[ERROR] Error al reconstruir el estado de la partida: {e}")
             return False
 
     def new_game(self):
@@ -372,7 +399,7 @@ class MapManager:
                 if isinstance(mine, Mine_G1):
                     mine.toggle()
 
-        # PLAN PHASE: ask every vehicle to plan its path (does not modify grid)
+    # FASE DE PLANIFICACIÓN: pedir a cada vehículo que planifique su siguiente paso
         vehicles = list(self.player1.vehicles) + list(self.player2.vehicles)
         for v in vehicles:
             try:
@@ -384,7 +411,7 @@ class MapManager:
                 except Exception:
                     pass
 
-        # COLLECT INTENDED MOVES
+    # RECOGIDA DE MOVIMIENTOS INTENDIDOS
         target_map: dict[tuple[int, int], list] = {}
         intent_by_vehicle = {}
         for v in vehicles:
@@ -397,7 +424,7 @@ class MapManager:
                 target_map.setdefault(nxt, []).append(v)
                 intent_by_vehicle[v] = nxt
 
-        # RESOLVE CONFLICTS
+    # RESOLVER CONFLICTOS ENTRE VEHÍCULOS QUE QUIEREN LA MISMA CASILLA
         for target, vs in list(target_map.items()):
             if len(vs) <= 1:
                 continue
@@ -416,7 +443,7 @@ class MapManager:
                     except Exception:
                         pass
 
-        # EXECUTE PHASE: perform approved moves
+    # FASE DE EJECUCIÓN: realizar los movimientos aprobados
         for v, target in list(intent_by_vehicle.items()):
             try:
                 v.execute_move(self, target)
@@ -427,7 +454,7 @@ class MapManager:
                 except Exception:
                     pass
 
-        # Recompute danger zones in case mines moved/teleported
+    # Recalcular zonas de peligro por si alguna mina cambió de estado
         self.update_danger_zones()
 
         # DEBUG: registrar estado de minas despues de ejecutar el turno
@@ -437,7 +464,7 @@ class MapManager:
         except Exception:
             pass
 
-        # After movement, handle collisions
+    # Después del movimiento, gestionar colisiones
         self.check_collisions()
 
         # Unload at base
@@ -457,11 +484,27 @@ class MapManager:
             if len(vs) > 1:
                 x, y = pos
                 for v in vs:
+                    # If a vehicle had an item stored under it, restore it to the grid
+                    try:
+                        if getattr(v, 'under_item', None) is not None:
+                            itm = v.under_item
+                            try:
+                                itm.position = (x, y)
+                                self.grid[x][y] = itm
+                            except Exception:
+                                pass
+                            v.under_item = None
+                    except Exception:
+                        pass
                     if v in v.team.vehicles:
                         v.team.vehicles.remove(v)
-                self.grid[x][y] = None
-                print(f"Collision at {pos}, removed {len(vs)} vehicles.")
-                print(f"Vehicles involved: {[str(v.__class__.__name__)+" from "+v.team.name for v in vs]}")
+                # If no item was restored above, ensure grid cell is cleared
+                if self.grid[x][y] is None:
+                    self.grid[x][y] = None
+                # Registro de colisión: imprimimos información consistente en español
+                print(f"[COLISIÓN] Posición: {pos} — Vehículos eliminados: {len(vs)}")
+                detalle_vehiculos = [f"{v.__class__.__name__} (equipo: {v.team.name})" for v in vs]
+                print(f"[COLISIÓN] Vehículos involucrados: {detalle_vehiculos}")
 
         # Collect all mines on the grid
         mines = []
@@ -481,13 +524,27 @@ class MapManager:
             for mine in mines:
                 mine_x, mine_y = mine.position
                 if abs(vehicle_x - mine_x) <= mine.x_radius and abs(vehicle_y - mine_y) <= mine.y_radius:
+                    # If vehicle had an item under it, restore that item to the grid
+                    try:
+                        if getattr(vehicle, 'under_item', None) is not None:
+                            itm = vehicle.under_item
+                            try:
+                                itm.position = (vehicle_x, vehicle_y)
+                                self.grid[vehicle_x][vehicle_y] = itm
+                            except Exception:
+                                pass
+                            vehicle.under_item = None
+                    except Exception:
+                        pass
                     try:
                         if vehicle in vehicle.team.vehicles:
                             vehicle.team.vehicles.remove(vehicle)
                     except Exception:
                         pass
                     try:
-                        self.grid[vehicle_x][vehicle_y] = None
+                        # If no item was restored above, ensure the cell is cleared
+                        if self.grid[vehicle_x][vehicle_y] is None:
+                            self.grid[vehicle_x][vehicle_y] = None
                     except Exception:
                         pass
                     break

@@ -96,27 +96,27 @@ class Visualization:
 
                         # Guardamos el estado actual del juego antes de avanzar
                         saved_file = self.map_manager.save_game(self.current_turn)
-                        print(f"Juego guardado en {saved_file}")
+                        print(f"[INFO] Juego guardado en: {saved_file}")
                         # Avanzamos la simulación un paso (MapManager maneja el movimiento)
 
                         self.map_manager.next_turn(self.current_turn)
                         
-                        print(f"Avanzando al turno {self.current_turn}")
+                        print(f"[INFO] Avanzando al turno: {self.current_turn}")
                     pass
                 if event.key == pygame.K_LEFT:
                     if self.current_turn > 0:
                         prev_turn = self.current_turn - 1
                         # Intentamos cargar el turno anterior
-                        prev_turn_file = f"{self.map_manager.current_game_folder}/turno_{prev_turn}.pkl"
+                        prev_turn_file = os.path.join(self.map_manager.current_game_folder, f"turno_{prev_turn}.pkl")
                         if os.path.exists(prev_turn_file):
                             # Solo actualizamos current_turn si la carga fue exitosa
                             if self.map_manager.load_game(prev_turn_file, prev_turn):
                                 self.current_turn = prev_turn
-                                print(f"Volviendo al turno {self.current_turn}")
+                                print(f"[INFO] Volviendo al turno: {self.current_turn}")
                             else:
-                                print(f"Error al cargar el turno {prev_turn}")
+                                print(f"[ERROR] Error al cargar el turno: {prev_turn}")
                         else:
-                            print(f"No se encontró el turno {prev_turn}")
+                            print(f"[ERROR] No se encontró el archivo del turno: {prev_turn}")
                     pass
     
     def run(self):

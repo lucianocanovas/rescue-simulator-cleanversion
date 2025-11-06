@@ -10,6 +10,10 @@ class Vehicle:
         self.position = position
         self.capacity = capacity
         self.load = load
+        # If a vehicle is standing on top of an item without picking it,
+        # we store that item here so it can be restored to the grid when
+        # the vehicle moves away or is destroyed.
+        self.under_item = None
         # path is a list of (x,y) positions vehicle will follow (including current start)
         self.path: list[tuple[int, int]] = []
         # state: 'idle', 'collecting', 'returning'
@@ -18,7 +22,8 @@ class Vehicle:
         try:
             self.sprite = load_sprite(sprite)
         except Exception as e:
-            print(f"Error loading sprite: {e}")
+            # Mensaje de error uniforme en español
+            print(f"[ERROR] Error al cargar sprite: {e}")
             self.sprite = None
 
     def move(self, map_manager):
@@ -76,19 +81,37 @@ class Vehicle:
         # Items are handled below (picked up if possible).
 
         old_x, old_y = self.position
+        # When leaving the old cell, restore any item that was under this vehicle
         if 0 <= old_x < map_manager.width and 0 <= old_y < map_manager.height:
             if map_manager.grid[old_x][old_y] is self:
                 map_manager.grid[old_x][old_y] = None
+            # If we were carrying an item 'under' us, put it back on the grid
+            if getattr(self, 'under_item', None) is not None:
+                item = self.under_item
+                try:
+                    item.position = (old_x, old_y)
+                    map_manager.grid[old_x][old_y] = item
+                except Exception:
+                    pass
+                self.under_item = None
 
-        # Pick item if present
+        # Handle item at destination.
         if isinstance(dest_obj, Item):
             picked = self.pick_item(dest_obj)
             if picked:
+                # Remove item from ground since it was picked
                 map_manager.grid[nx][ny] = None
             else:
-                self.path = []
-                map_manager.grid[old_x][old_y] = self
-                return
+                # Vehicle cannot pick this item (e.g., motorcycle vs non-person).
+                # Allow vehicle to pass over the item: temporarily remove the
+                # item from the grid and keep it in `under_item` so it can be
+                # restored when the vehicle leaves that cell or is destroyed.
+                try:
+                    # detach item from grid and store reference
+                    self.under_item = dest_obj
+                    map_manager.grid[nx][ny] = None
+                except Exception:
+                    self.under_item = None
 
         # Move
         self.position = (nx, ny)
