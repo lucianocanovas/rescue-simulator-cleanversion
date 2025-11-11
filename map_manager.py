@@ -661,10 +661,9 @@ class MapManager:
         # Use pathfinding utilities to check reachability from each vehicle that
         # is able to pick items (not full).
         try:
-            from pathfinding import find_nearest_item, find_nearest_person
+            from pathfinding import find_nearest
         except Exception:
-            find_nearest_item = None
-            find_nearest_person = None
+            find_nearest = None
 
         for v in vehicles:
             try:
@@ -672,14 +671,12 @@ class MapManager:
                 if len(getattr(v, 'load', [])) >= getattr(v, 'capacity', 0):
                     continue
                 # choose pathfinder according to vehicle's capabilities
-                if getattr(v, 'only_persons', False):
-                    if find_nearest_person is None:
-                        continue
-                    path = find_nearest_person(self.grid, v.position, self.danger_zones)
-                else:
-                    if find_nearest_item is None:
-                        continue
-                    path = find_nearest_item(self.grid, v.position, self.danger_zones)
+                if find_nearest is None:
+                    continue
+                only_persons = getattr(v, 'only_persons', False)
+                exclude_persons = getattr(v, 'exclude_persons', False)
+                path = find_nearest(self.grid, v.position, self.danger_zones, 
+                                  only_persons=only_persons, exclude_persons=exclude_persons)
                 if path is not None:
                     # at least one vehicle can reach an on-grid item => not over
                     return False, None

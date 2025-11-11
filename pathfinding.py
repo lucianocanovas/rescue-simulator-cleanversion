@@ -54,10 +54,18 @@ def bfs(grid: list[list[Any]], start: tuple[int, int], goal: tuple[int, int]):
             q.append(nbr)
     return None
 
-
-def find_nearest_item(grid: list[list[Any]], start: tuple[int, int], danger_zones: list[list[bool]]):
-    """BFS from start over safe cells (danger_zones False) until an Item is found.
-    Returns path to the item (including start and goal) or None if none reachable.
+def find_nearest(grid: list[list[Any]], start: tuple[int, int], danger_zones: list[list[bool]], only_persons: bool = False, exclude_persons: bool = False):
+    """BFS from start over safe cells (danger_zones False) until an Item (or Person if only_persons=True) is found.
+    
+    Args:
+        grid: La matriz que representa el mapa.
+        start: Posición inicial (x, y).
+        danger_zones: Matriz booleana indicando zonas peligrosas.
+        only_persons: Si True, busca solo Person. Si False, busca cualquier Item.
+        exclude_persons: Si True, excluye Person (busca solo Items no-Person).
+    
+    Returns:
+        Path to the item/person (including start and goal) or None if none reachable.
     """
     q = deque([start])
     came_from = {start: None}
@@ -74,10 +82,22 @@ def find_nearest_item(grid: list[list[Any]], start: tuple[int, int], danger_zone
             return False
         # Permitir celdas vacías o con items
         return True
+    
+    # Función auxiliar: comprueba si un objeto es el objetivo buscado
+    def is_target(obj):
+        if only_persons:
+            # Solo personas
+            return Person is not None and isinstance(obj, Person)
+        elif exclude_persons:
+            # Items pero NO personas
+            return Item is not None and isinstance(obj, Item) and not isinstance(obj, Person)
+        else:
+            # Cualquier Item
+            return Item is not None and isinstance(obj, Item)
 
-    # If start cell contains an item, return it immediately
+    # If start cell contains the target, return it immediately
     sx, sy = start
-    if Item is not None and isinstance(grid[sx][sy], Item):
+    if is_target(grid[sx][sy]):
         return [start]
 
     while q:
@@ -89,7 +109,7 @@ def find_nearest_item(grid: list[list[Any]], start: tuple[int, int], danger_zone
                 continue
             came_from[nbr] = current
             x, y = nbr
-            if Item is not None and isinstance(grid[x][y], Item):
+            if is_target(grid[x][y]):
                 # reconstruct path
                 path = [nbr]
                 cur = current
@@ -101,30 +121,37 @@ def find_nearest_item(grid: list[list[Any]], start: tuple[int, int], danger_zone
             q.append(nbr)
     return None
 
-def find_nearest_person(grid: list[list[Any]], start: tuple[int, int], danger_zones: list[list[bool]]):
-    """BFS from start over safe cells (danger_zones False) until a Person is found.
-    Returns path to the person (including start and goal) or None if none reachable.
+def find_farthest(grid: list[list[Any]], start: tuple[int, int], danger_zones: list[list[bool]], only_persons: bool = False, exclude_persons: bool = False):
+    """BFS over walkable cells and return the path to the farthest reachable Item/Person.
+    If the start cell is a target, it's considered but the search continues to find a farther one.
     """
     q = deque([start])
     came_from = {start: None}
 
-    # Función auxiliar: comprueba si una celda es transitable (segura y no es mina)
     def walkable(pos):
         x, y = pos
-        # El tratamiento de fuera de límites lo realiza `neighbors`/`in_bounds`.
         if danger_zones and danger_zones[x][y]:
             return False
         obj = grid[x][y]
-        # No permitir entrar en minas; las personas son objetivos transitables.
         if Mine is not None and isinstance(obj, Mine):
             return False
-        # Permitir celdas vacías o con personas
         return True
 
-    # If start cell contains a person, return it immediately
+    def is_target(obj):
+        if only_persons:
+            # Solo personas
+            return Person is not None and isinstance(obj, Person)
+        elif exclude_persons:
+            # Items pero NO personas
+            return Item is not None and isinstance(obj, Item) and not isinstance(obj, Person)
+        else:
+            # Cualquier Item
+            return Item is not None and isinstance(obj, Item)
+
+    last_target = None
     sx, sy = start
-    if Person is not None and isinstance(grid[sx][sy], Person):
-        return [start]
+    if is_target(grid[sx][sy]):
+        last_target = start
 
     while q:
         current = q.popleft()
@@ -135,18 +162,21 @@ def find_nearest_person(grid: list[list[Any]], start: tuple[int, int], danger_zo
                 continue
             came_from[nbr] = current
             x, y = nbr
-            if Person is not None and isinstance(grid[x][y], Person):
-                # reconstruct path
-                path = [nbr]
-                cur = current
-                while cur is not None:
-                    path.append(cur)
-                    cur = came_from[cur]
-                path.reverse()
-                return path
+            if is_target(grid[x][y]):
+                last_target = nbr
             q.append(nbr)
-    return None
 
+    if last_target is None:
+        return None
+
+    # reconstruct path to the farthest found target
+    path = [last_target]
+    cur = came_from[last_target]
+    while cur is not None:
+        path.append(cur)
+        cur = came_from[cur]
+    path.reverse()
+    return path
 
 def find_path_to_column(grid: list[list[Any]], start: tuple[int, int], target_x: int, danger_zones: list[list[bool]]):
     """BFS to the nearest cell whose x coordinate == target_x and is walkable.

@@ -1,11 +1,11 @@
-from assets import load_sprite
+from assets import load_sprite, load_sound
 from classes.Item import Item, Person
 from classes.Player import Player
-from pathfinding import find_nearest_item, find_nearest_person, find_path_to_column
+from pathfinding import find_nearest, find_path_to_column
 from classes.Mine import Mine
 
 class Vehicle:
-    def __init__(self, team: Player, position: tuple[int, int], capacity: int, sprite: str, load: list[Item] = [], only_persons: bool = False):
+    def __init__(self, team: Player, position: tuple[int, int], capacity: int, sprite: str, load: list[Item] = [], only_persons: bool = False, exclude_persons: bool = False):
         self.team = team
         self.position = position
         self.capacity = capacity
@@ -18,13 +18,19 @@ class Vehicle:
         self.path: list[tuple[int, int]] = []
         # state: 'idle', 'collecting', 'returning'
         self.state: str = 'idle'
-        self.only_persons = only_persons
+        self.only_persons = only_persons  # Motocicletas: solo personas
+        self.exclude_persons = exclude_persons  # Camiones y Jeeps: no personas
         try:
             self.sprite = load_sprite(sprite)
         except Exception as e:
             # Mensaje de error uniforme en español
             print(f"[ERROR] Error al cargar sprite: {e}")
             self.sprite = None
+        # Cargar el sonido de descarga una sola vez (variable de clase)
+        try:
+            self.unload_sound = load_sound('unload.mp3')
+        except Exception:
+            self.unload_sound = None
 
     def move(self, map_manager):
         # Backwards-compatible single-vehicle move: plan then execute one step
@@ -43,10 +49,8 @@ class Vehicle:
             return
         # If not full, find nearest safe item
         if len(self.load) < self.capacity:
-            if self.only_persons:
-                path = find_nearest_person(map_manager.grid, self.position, map_manager.danger_zones)
-            else:
-                path = find_nearest_item(map_manager.grid, self.position, map_manager.danger_zones)
+            path = find_nearest(map_manager.grid, self.position, map_manager.danger_zones, 
+                              only_persons=self.only_persons, exclude_persons=self.exclude_persons)
             if path:
                 self.path = path[1:]
                 self.state = 'collecting'
@@ -138,6 +142,12 @@ class Vehicle:
                     self.team.add_points(total)
                 except Exception:
                     pass
+                # Reproducir sonido de descarga si hay items y el sonido está disponible
+                if self.load and self.unload_sound is not None:
+                    try:
+                        self.unload_sound.play()
+                    except Exception:
+                        pass
                 self.load = []
                 self.state = 'idle'
                 self.path = []
@@ -161,6 +171,14 @@ class Vehicle:
             self.team.add_points(total)
         except Exception:
             pass
+        
+        # Reproducir sonido de descarga si el sonido está disponible
+        if self.unload_sound is not None:
+            try:
+                self.unload_sound.play()
+            except Exception:
+                pass
+        
         # clear load
         self.load = []
         self.state = 'idle'
@@ -171,6 +189,8 @@ class Vehicle:
         if len(self.load) >= self.capacity:
             return False
         if self.only_persons and not isinstance(item, Person):
+            return False
+        if self.exclude_persons and isinstance(item, Person):
             return False
         self.load.append(item)
         return True
@@ -187,16 +207,16 @@ class Vehicle:
 
 class Truck(Vehicle):
     def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=3, sprite="truck.png", load=[], only_persons=False)
+        super().__init__(team, position, capacity=3, sprite="truck.png", load=[], only_persons=False, exclude_persons=True)
 
 class Jeep(Vehicle):
     def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team ,position, capacity=2, sprite="jeep.png", load=[], only_persons=False)
+        super().__init__(team ,position, capacity=2, sprite="jeep.png", load=[], only_persons=False, exclude_persons=True)
 
 class Car(Vehicle):
     def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=1, sprite="car.png", load=[], only_persons=False)
+        super().__init__(team, position, capacity=1, sprite="car.png", load=[], only_persons=False, exclude_persons=False)
 
 class Motorcycle(Vehicle):
     def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=1, sprite="motorcycle.png", load=[], only_persons=True)
+        super().__init__(team, position, capacity=1, sprite="motorcycle.png", load=[], only_persons=True, exclude_persons=False)
