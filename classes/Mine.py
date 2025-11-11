@@ -7,9 +7,8 @@ class Mine:
         self.y_radius = y_radius
         try:
             self.sprite = load_sprite(sprite)
-        except Exception as e:
-            # Mensaje de error uniforme en español
-            print(f"❌ - ERROR LOADING THE MINE SPRITE: {e}")
+        except Exception as error:
+            print(f"❌ - ERROR LOADING THE MINE SPRITE: {error}")
             self.sprite = None
 
 class Mine_O1(Mine):

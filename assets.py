@@ -16,8 +16,8 @@ def load_sound(sound_path: str):
             print(f"❌ - SOUND FILE NOT FOUND: {path}")
             return None
         return pygame.mixer.Sound(path)
-    except Exception as e:
-        print(f"❌ - ERROR LOADING SOUND FILE ({sound_path}): {e}")
+    except Exception as error:
+        print(f"❌ - ERROR LOADING SOUND FILE ({sound_path}): {error}")
         return None
 
 def load_font(font_path: str, size: int):
@@ -28,6 +28,6 @@ def load_font(font_path: str, size: int):
             print(f"❌ - FONT FILE NOT FOUND: {path}, USING DEFAULT FONT")
             return pygame.font.SysFont(None, size)
         return pygame.font.Font(path, size)
-    except Exception as e:
-        print(f"❌ - ERROR LOADING FONT FILE ({font_path}): {e}, USING DEFAULT FONT")
+    except Exception as error:
+        print(f"❌ - ERROR LOADING FONT FILE ({font_path}): {error}, USING DEFAULT FONT")
         return pygame.font.SysFont(None, size)

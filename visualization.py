@@ -4,16 +4,16 @@ import json
 from assets import load_sprite, load_sound, load_font
 from map_manager import MapManager
 from classes.Mine import Mine
+from classes.Vehicle import Vehicle, Truck, Jeep, Car, Motorcycle
 
-# Constants
-# Load visualization constants from config.json when available so CELL_SIZE
-# can be adjusted without editing code.
+# Load visualization constants from config.json when available
+# so CELL_SIZE can be adjusted without editing code
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
 try:
-    with open(CONFIG_PATH, 'r', encoding='utf-8') as _cfg_f:
-        _cfg = json.load(_cfg_f)
-    _viz = _cfg.get('visualization', {}) if isinstance(_cfg, dict) else {}
-    CELL_SIZE = int(_viz.get('cell_size', 16))
+    with open(CONFIG_PATH, 'r', encoding='utf-8') as config_file:
+        config = json.load(config_file)
+    visualization_config = config.get('visualization', {}) if isinstance(config, dict) else {}
+    CELL_SIZE = int(visualization_config.get('cell_size', 16))
     WINDOW_SIZE = CELL_SIZE * 50
 except Exception:
     CELL_SIZE = 16
@@ -33,30 +33,30 @@ ORANGE = (255, 160, 0)
 class Visualization:
     def __init__(self, map_manager: MapManager):
         self.map_manager = map_manager
-        # Calcular tamaño de ventana dinámicamente con la resolución del mapa
+        # Calculate window size dynamically with map resolution
         self.window_size = self.map_manager.width * CELL_SIZE
-        # Asegurarse de que la superficie existe (GameEngine debería haber llamado set_mode)
+        # Ensure surface exists (GameEngine should have called set_mode)
         self.screen = pygame.display.get_surface()
         self.clock = pygame.time.Clock()
         self.current_turn = 0
         self.autoplay = False
         # Read autoplay delay (ms) from config.json, fall back to 1000 ms
         try:
-            with open(CONFIG_PATH, 'r', encoding='utf-8') as _cfg_f:
-                _cfg = json.load(_cfg_f)
-            _viz = _cfg.get('visualization', {}) if isinstance(_cfg, dict) else {}
-            self.autoplay_delay = int(_viz.get('autoplay_delay', 1000))
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as config_file:
+                config = json.load(config_file)
+            visualization_config = config.get('visualization', {}) if isinstance(config, dict) else {}
+            self.autoplay_delay = int(visualization_config.get('autoplay_delay', 1000))
         except Exception:
             self.autoplay_delay = 1000
         self.last_autoplay_time = pygame.time.get_ticks()
         self.running = True
         pygame.display.set_caption("Rescue Simulator")
-        # Cargar sprite de explosión una vez
+        # Load explosion sprite once
         try:
             self.explosion_sprite = load_sprite('explosion.png')
         except Exception:
             self.explosion_sprite = None
-        # Cargar sonido de victoria
+        # Load victory sound
         try:
             self.victory_sound = load_sound('victory.mp3')
         except Exception:
@@ -69,73 +69,70 @@ class Visualization:
             pygame.draw.line(self.screen, GRAY, (0, y), (self.window_size, y))
     
     def draw_objects(self):
-        from classes.Vehicle import Vehicle, Truck, Jeep, Car, Motorcycle
-        
-        # Primero dibujamos todos los sprites de objetos
+        # First draw all object sprites
         for x in range(self.map_manager.width):
             for y in range(self.map_manager.height):
-                obj = self.map_manager.grid[x][y]
-                if obj is not None:
+                grid_object = self.map_manager.grid[x][y]
+                if grid_object is not None:
                     pixel_x = x * CELL_SIZE
                     pixel_y = y * CELL_SIZE
                     
-                    # Si es un vehículo, dibujar fondo de color con transparencia
-                    if isinstance(obj, Vehicle):
-                        bg_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+                    # If it's a vehicle, draw colored background with transparency
+                    if isinstance(grid_object, Vehicle):
+                        background_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
                         
-                        # Determinar color según tipo de vehículo
-                        if isinstance(obj, Truck):
-                            color = (255, 0, 0)  # Rojo con 50% transparencia
-                        elif isinstance(obj, Jeep):
-                            color = (255, 255, 0)  # Amarillo con 50% transparencia
-                        elif isinstance(obj, Car):
-                            color = (255, 165, 0)  # Naranja con 50% transparencia
-                        elif isinstance(obj, Motorcycle):
-                            color = (0, 255, 0)  # Verde con 50% transparencia
+                        # Determine color based on vehicle type
+                        if isinstance(grid_object, Truck):
+                            color = (255, 0, 0)  # Red
+                        elif isinstance(grid_object, Jeep):
+                            color = (255, 255, 0)  # Yellow
+                        elif isinstance(grid_object, Car):
+                            color = (255, 165, 0)  # Orange
+                        elif isinstance(grid_object, Motorcycle):
+                            color = (0, 255, 0)  # Green
                         else:
-                            color = (200, 200, 200)  # Gris por defecto
+                            color = (200, 200, 200)  # Default gray
                         
-                        bg_surface.fill(color)
-                        self.screen.blit(bg_surface, (pixel_x, pixel_y))
+                        background_surface.fill(color)
+                        self.screen.blit(background_surface, (pixel_x, pixel_y))
                     
-                    scaled_sprite = pygame.transform.scale(obj.sprite, (CELL_SIZE, CELL_SIZE))
+                    scaled_sprite = pygame.transform.scale(grid_object.sprite, (CELL_SIZE, CELL_SIZE))
                     self.screen.blit(scaled_sprite, (pixel_x, pixel_y))
         
-        # Después dibujamos los rectángulos rojos de las minas encima
+        # Then draw the red rectangles of mines on top
         for x in range(self.map_manager.width):
             for y in range(self.map_manager.height):
-                obj = self.map_manager.grid[x][y]
-                if isinstance(obj, Mine):
-                    radius_x = obj.x_radius * CELL_SIZE
-                    radius_y = obj.y_radius * CELL_SIZE
+                grid_object = self.map_manager.grid[x][y]
+                if isinstance(grid_object, Mine):
+                    radius_x = grid_object.x_radius * CELL_SIZE
+                    radius_y = grid_object.y_radius * CELL_SIZE
                     center_x = x * CELL_SIZE + CELL_SIZE // 2
                     center_y = y * CELL_SIZE + CELL_SIZE // 2
-                    # Dibujar rectángulo con grosor=2 para mejor visibilidad
+                    # Draw rectangle with thickness=2 for better visibility
                     pygame.draw.rect(self.screen, RED, (center_x - radius_x, center_y - radius_y, radius_x * 2, radius_y * 2), 2)
 
     def draw_explosions(self):
-        # Dibuja círculos en las posiciones registradas como explosiones
         try:
-            for ex in getattr(self.map_manager, 'explosions', []):
-                pos = ex.get('pos')
-                if not pos:
+            for explosion in getattr(self.map_manager, 'explosions', []):
+                position = explosion.get('pos')
+                if not position:
                     continue
-                x, y = pos
-                # Si disponemos del sprite, dibujarlo centrado ocupando 3x3 celdas
+                explosion_x, explosion_y = position
+                # If explosion sprite available, draw it centered occupying 3x3 cells
                 if self.explosion_sprite is not None:
                     try:
-                        size_px = CELL_SIZE * 3
-                        sprite_scaled = pygame.transform.scale(self.explosion_sprite, (size_px, size_px))
-                        # Top-left para centrar 3x3 sobre la casilla (x,y)
-                        top_left_x = x * CELL_SIZE - CELL_SIZE
-                        top_left_y = y * CELL_SIZE - CELL_SIZE
+                        size_pixels = CELL_SIZE * 3
+                        sprite_scaled = pygame.transform.scale(self.explosion_sprite, (size_pixels, size_pixels))
+                        # Top-left to center 3x3 over cell (x,y)
+                        top_left_x = explosion_x * CELL_SIZE - CELL_SIZE
+                        top_left_y = explosion_y * CELL_SIZE - CELL_SIZE
                         self.screen.blit(sprite_scaled, (top_left_x, top_left_y))
                         continue
                     except Exception:
                         pass
-                # Fallback: dibujar círculo naranja si no hay sprite
-                center_x = x * CELL_SIZE + CELL_SIZE // 2
-                center_y = y * CELL_SIZE + CELL_SIZE // 2
+                # Fallback: draw orange circle if no sprite
+                center_x = explosion_x * CELL_SIZE + CELL_SIZE // 2
+                center_y = explosion_y * CELL_SIZE + CELL_SIZE // 2
                 radius = max(4, CELL_SIZE // 2)
                 pygame.draw.circle(self.screen, ORANGE, (center_x, center_y), radius)
         except Exception:
@@ -149,26 +146,26 @@ class Visualization:
 
     def draw_player_info(self):
         font = load_font('minecraft.ttf', 32)
-        box_w, box_h = 180, 50
-        box_x = (self.window_size - box_w) // 2
-        box_y = (self.window_size - box_h)
+        box_width, box_height = 180, 50
+        box_x = (self.window_size - box_width) // 2
+        box_y = (self.window_size - box_height)
         
-        # Crear superficies con transparencia para el fondo
-        # Borde negro con 50% de opacidad
-        border_surface = pygame.Surface((box_w + 4, box_h + 4), pygame.SRCALPHA)
-        border_surface.fill((0, 0, 0, 64))  # RGBA: negro con alpha=128 (50%)
+        # Create transparent surfaces for background
+        # Black border with 50% opacity
+        border_surface = pygame.Surface((box_width + 4, box_height + 4), pygame.SRCALPHA)
+        border_surface.fill((0, 0, 0, 64))  # RGBA: black with alpha=64
         self.screen.blit(border_surface, (box_x - 2, box_y - 2))
         
-        # Fondo blanco con 50% de opacidad
-        bg_surface = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-        bg_surface.fill((255, 255, 255, 0))  # RGBA: blanco con alpha=128 (50%)
-        self.screen.blit(bg_surface, (box_x, box_y))
+        # White background with transparency
+        background_surface = pygame.Surface((box_width, box_height), pygame.SRCALPHA)
+        background_surface.fill((255, 255, 255, 0))  # RGBA: white with alpha=0
+        self.screen.blit(background_surface, (box_x, box_y))
         
         # Read points from Player objects so scoreboard reflects actual points
-        p1_score = getattr(self.map_manager.player1, "points", 0)
-        p2_score = getattr(self.map_manager.player2, "points", 0)
-        score_text = font.render(f"{p1_score}  -  {p2_score}", True, BLACK)
-        score_rect = score_text.get_rect(center=(box_x + box_w // 2, box_y + box_h // 2))
+        player1_score = getattr(self.map_manager.player1, "points", 0)
+        player2_score = getattr(self.map_manager.player2, "points", 0)
+        score_text = font.render(f"{player1_score}  -  {player2_score}", True, BLACK)
+        score_rect = score_text.get_rect(center=(box_x + box_width // 2, box_y + box_height // 2))
         self.screen.blit(score_text, score_rect)
 
         # Show current turn number in the upper part
@@ -187,14 +184,13 @@ class Visualization:
         pygame.display.flip()
     
     def show_controls_screen(self):
-        """Muestra la pantalla de controles antes de comenzar la partida."""
-        # Cargar imágenes de las teclas
+        # Load key images
         try:
             arrow_left = load_sprite('ARROWLEFT.png')
             arrow_right = load_sprite('ARROWRIGHT.png')
             space_key = load_sprite('SPACE.png')
-        except Exception as e:
-            print(f"❌ - ERROR LOADING CONTROL SPRITES: {e}")
+        except Exception as error:
+            print(f"❌ - ERROR LOADING CONTROL SPRITES: {error}")
             arrow_left = None
             arrow_right = None
             space_key = None
@@ -210,79 +206,79 @@ class Visualization:
                 if event.type == pygame.KEYDOWN:
                     waiting = False
             
-            # Dibujar el estado del juego de fondo
+            # Draw game state in background
             self.screen.fill(WHITE)
             self.draw_bases()
             self.draw_objects()
             self.draw_grid()
             
-            # Overlay oscuro semi-transparente sobre el tablero
+            # Dark semi-transparent overlay over the board
             overlay = pygame.Surface((self.window_size, self.window_size), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 200))  # Negro con 78% opacidad
+            overlay.fill((0, 0, 0, 200))  # Black with 78% opacity
             self.screen.blit(overlay, (0, 0))
             
-            # Título principal
+            # Main title
             title_font = load_font('minecraft.ttf', 72)
             title_text = title_font.render("RESCUE SIMULATOR", True, WHITE)
             title_rect = title_text.get_rect(center=(self.window_size // 2, 100))
             self.screen.blit(title_text, title_rect)
             
-            # Configuración de layout
+            # Layout configuration
             key_size = 70
-            desc_font = load_font('minecraft.ttf', 32)
+            description_font = load_font('minecraft.ttf', 32)
             
-            # Posición inicial más abajo del título
+            # Initial position below title
             start_y = 200
             
-            # Espaciado entre cada bloque completo (imagen + texto + margen)
-            block_spacing = 160  # Más separación entre bloques
-            text_offset = 10     # Menos espacio entre imagen y texto (más juntos)
+            # Spacing between each complete block (image + text + margin)
+            block_spacing = 160
+            text_offset = 10
             
-            # Control 1: Flecha Izquierda
+            # Control 1: Arrow Left
             current_y = start_y
             if arrow_left:
-                # Imagen centrada
+                # Centered image
                 arrow_left_scaled = pygame.transform.scale(arrow_left, (key_size, key_size))
-                img_rect = arrow_left_scaled.get_rect(center=(self.window_size // 2, current_y))
-                self.screen.blit(arrow_left_scaled, img_rect)
+                image_rect = arrow_left_scaled.get_rect(center=(self.window_size // 2, current_y))
+                self.screen.blit(arrow_left_scaled, image_rect)
                 
-                # Texto centrado debajo de la imagen con más espacio
+                # Text centered below image
                 text_y = current_y + key_size + text_offset
-                desc_text = desc_font.render("Retroceder turno", True, WHITE)
-                desc_rect = desc_text.get_rect(center=(self.window_size // 2, text_y))
-                self.screen.blit(desc_text, desc_rect)
+                description_text = description_font.render("PREVIOUS TURN", True, WHITE)
+                description_rect = description_text.get_rect(center=(self.window_size // 2, text_y))
+                self.screen.blit(description_text, description_rect)
             
-            # Control 2: Flecha Derecha
+            # Control 2: Arrow Right
             current_y = start_y + block_spacing
             if arrow_right:
-                # Imagen centrada
+                # Centered image
                 arrow_right_scaled = pygame.transform.scale(arrow_right, (key_size, key_size))
-                img_rect = arrow_right_scaled.get_rect(center=(self.window_size // 2, current_y))
-                self.screen.blit(arrow_right_scaled, img_rect)
+                image_rect = arrow_right_scaled.get_rect(center=(self.window_size // 2, current_y))
+                self.screen.blit(arrow_right_scaled, image_rect)
                 
-                # Texto centrado debajo de la imagen con más espacio
+                # Text centered below image
                 text_y = current_y + key_size + text_offset
-                desc_text = desc_font.render("Avanzar turno", True, WHITE)
-                desc_rect = desc_text.get_rect(center=(self.window_size // 2, text_y))
-                self.screen.blit(desc_text, desc_rect)
+                description_text = description_font.render("NEXT TURN", True, WHITE)
+                description_rect = description_text.get_rect(center=(self.window_size // 2, text_y))
+                self.screen.blit(description_text, description_rect)
             
-            # Control 3: Espacio
+            # Control 3: Space
             current_y = start_y + block_spacing * 2
             if space_key:
-                # Imagen centrada (más ancha)
+                # Centered image (wider)
                 space_scaled = pygame.transform.scale(space_key, (key_size * 2.5, key_size))
-                img_rect = space_scaled.get_rect(center=(self.window_size // 2, current_y))
-                self.screen.blit(space_scaled, img_rect)
+                image_rect = space_scaled.get_rect(center=(self.window_size // 2, current_y))
+                self.screen.blit(space_scaled, image_rect)
                 
-                # Texto centrado debajo de la imagen con más espacio
+                # Text centered below image
                 text_y = current_y + key_size + text_offset
-                desc_text = desc_font.render("Autoplay ON/OFF", True, WHITE)
-                desc_rect = desc_text.get_rect(center=(self.window_size // 2, text_y))
-                self.screen.blit(desc_text, desc_rect)
+                description_text = description_font.render("TOGGLE AUTOPLAY", True, WHITE)
+                description_rect = description_text.get_rect(center=(self.window_size // 2, text_y))
+                self.screen.blit(description_text, description_rect)
             
-            # Instrucción para comenzar
+            # Instruction to start
             continue_font = load_font('minecraft.ttf', 24)
-            continue_text = continue_font.render("Presiona cualquier tecla para comenzar", True, (255, 255, 255))
+            continue_text = continue_font.render("PRESS ANY KEY TO START", True, (255, 255, 255))
             continue_rect = continue_text.get_rect(center=(self.window_size // 2, self.window_size - 50))
             self.screen.blit(continue_text, continue_rect)
             
@@ -290,31 +286,30 @@ class Visualization:
             self.clock.tick(30)
     
     def show_game_over_screen(self, reason):
-        """Muestra la pantalla de fin de juego y espera a que el usuario presione una tecla."""
         
-        # Reproducir sonido de victoria con volumen reducido
+        # Play victory sound with reduced volume
         if self.victory_sound is not None:
             try:
-                self.victory_sound.set_volume(0.3)  # 30% del volumen (0.0 a 1.0)
+                self.victory_sound.set_volume(0.3)  # 30% volume (0.0 to 1.0)
                 self.victory_sound.play()
             except Exception:
                 pass
 
-        # Determinar el ganador
-        p1_score = self.map_manager.player1.points
-        p2_score = self.map_manager.player2.points
+        # Determine the winner
+        player1_score = self.map_manager.player1.points
+        player2_score = self.map_manager.player2.points
         
-        if p1_score > p2_score:
-            winner_text = "¡JUGADOR 1 GANA!"
+        if player1_score > player2_score:
+            winner_text = "¡PLAYER 1 WINS!"
             winner_color = BLUE
-        elif p2_score > p1_score:
-            winner_text = "¡JUGADOR 2 GANA!"
+        elif player2_score > player1_score:
+            winner_text = "¡PLAYER 2 WINS!"
             winner_color = RED
         else:
-            winner_text = "¡EMPATE!"
+            winner_text = "¡TIE!"
             winner_color = BLACK
         
-        # Mensaje de razón del fin
+        # End reason message
         reason_map = {
             'no_vehicles': 'NO VEHICLES LEFT',
             'no_items': 'NO ITEMS LEFT',
@@ -322,7 +317,7 @@ class Visualization:
         }
         reason_text = reason_map.get(reason, 'Game Over')
         
-        # Loop de la pantalla de game over
+        # Game over screen loop
         waiting = True
         while waiting:
             for event in pygame.event.get():
@@ -333,54 +328,51 @@ class Visualization:
                 if event.type == pygame.KEYDOWN:
                     waiting = False
             
-            # Dibujar el estado final del juego
+            # Draw final game state
             self.screen.fill(WHITE)
             self.draw_bases()
             self.draw_objects()
             self.draw_explosions()
             self.draw_grid()
             
-            # Overlay semi-transparente
+            # Semi-transparent overlay
             overlay = pygame.Surface((self.window_size, self.window_size), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 180))  # Negro con 70% opacidad
+            overlay.fill((0, 0, 0, 180))  # Black with 70% opacity
             self.screen.blit(overlay, (0, 0))
             
-            # Título "FIN DEL JUEGO"
+            # "GAME OVER" title
             title_font = load_font('minecraft.ttf', 72)
             title_text = title_font.render("GAME OVER", True, WHITE)
             title_rect = title_text.get_rect(center=(self.window_size // 2, self.window_size // 3))
             self.screen.blit(title_text, title_rect)
             
-            # Razón del fin
+            # End reason
             reason_font = load_font('minecraft.ttf', 32)
             reason_render = reason_font.render(reason_text, True, GRAY)
             reason_rect = reason_render.get_rect(center=(self.window_size // 2, self.window_size // 3 + 60))
             self.screen.blit(reason_render, reason_rect)
             
-            # Ganador
+            # Winner
             winner_font = load_font('minecraft.ttf', 48)
             winner_render = winner_font.render(winner_text, True, winner_color)
             winner_rect = winner_render.get_rect(center=(self.window_size // 2, self.window_size // 2))
             self.screen.blit(winner_render, winner_rect)
             
-            # Puntuaciones
+            # Scores
             score_font = load_font('minecraft.ttf', 48)
-            score_text = score_font.render(f"PLAYER 1: {p1_score}", True, BLUE)
+            score_text = score_font.render(f"PLAYER 1: {player1_score}", True, BLUE)
             score_rect = score_text.get_rect(center=(self.window_size // 2, self.window_size // 2 + 80))
             self.screen.blit(score_text, score_rect)
             
-            score_text2 = score_font.render(f"PLAYER 2: {p2_score}", True, RED)
+            score_text2 = score_font.render(f"PLAYER 2: {player2_score}", True, RED)
             score_rect2 = score_text2.get_rect(center=(self.window_size // 2, self.window_size // 2 + 130))
             self.screen.blit(score_text2, score_rect2)
             
-            # Instrucción para continuar
+            # Instruction to continue
             continue_font = load_font('minecraft.ttf', 28)
             continue_text = continue_font.render("PRESS ANY KEY TO CONTINUE", True, WHITE)
             continue_rect = continue_text.get_rect(center=(self.window_size // 2, self.window_size - 50))
             self.screen.blit(continue_text, continue_rect)
-            
-
-        # Reproducible: play victory sound once (non-blocking)
             
             pygame.display.flip()
             self.clock.tick(30)
@@ -402,8 +394,7 @@ class Visualization:
                     if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
                         self.current_turn += 1
 
-                        # Ejecutamos la simulación para el nuevo turno y luego guardamos
-                        # de modo que `turno_N.pkl` refleje el estado DESPUÉS de N turnos.
+                        # Execute simulation for new turn and then save
                         self.map_manager.next_turn(self.current_turn)
 
                         saved_file = self.map_manager.save_game(self.current_turn)
@@ -411,52 +402,52 @@ class Visualization:
                     pass
                 if event.key == pygame.K_LEFT:
                     if self.current_turn > 0:
-                        prev_turn = self.current_turn - 1
-                        # Intentamos cargar el turno anterior
-                        prev_turn_file = os.path.join(self.map_manager.current_game_folder, f"turno_{prev_turn}.pkl")
-                        if os.path.exists(prev_turn_file):
-                            # Solo actualizamos current_turn si la carga fue exitosa
-                            if self.map_manager.load_game(prev_turn_file, prev_turn):
-                                self.current_turn = prev_turn
+                        previous_turn = self.current_turn - 1
+                        # Try to load previous turn
+                        previous_turn_file = os.path.join(self.map_manager.current_game_folder, f"turn_{previous_turn}.pkl")
+                        if os.path.exists(previous_turn_file):
+                            # Only update current_turn if load was successful
+                            if self.map_manager.load_game(previous_turn_file, previous_turn):
+                                self.current_turn = previous_turn
                                 print(f"⏪ - RETURNED TO TURN: {self.current_turn}")
                             else:
-                                print(f"❌ - ERROR LOADING TURN: {prev_turn}")
+                                print(f"❌ - ERROR LOADING TURN: {previous_turn}")
                         else:
-                            print(f"❌ - TURN FILE NOT FOUND: {prev_turn_file}")
+                            print(f"❌ - TURN FILE NOT FOUND: {previous_turn_file}")
                     pass
     
     def run(self):
-        # Mostrar pantalla de controles antes de comenzar
+        # Show controls screen before starting
         self.show_controls_screen()
         
-        # Si el usuario cerró la ventana en la pantalla de controles, salir
+        # If user closed window on controls screen, exit
         if not self.running:
             return
         
         while self.running:
             # Check for game-over conditions each frame
             try:
-                over, reason = self.map_manager.is_game_over()
-                if over:
+                is_over, reason = self.map_manager.is_game_over()
+                if is_over:
                     # Print a concise message
                     reason_map = {
-                        'no_vehicles': 'No quedan vehículos. Fin del juego.',
-                        'no_items': 'No quedan objetos en la partida. Fin del juego.',
-                        'no_reachable_items': 'No hay objetos alcanzables por los vehículos. Fin del juego.'
+                        'no_vehicles': 'NO VEHICLES LEFT.',
+                        'no_items': 'NO ITEMS LEFT.',
+                        'no_reachable_items': 'NO REACHABLE ITEMS LEFT.'
                     }
-                    print(f"ℹ️ - GAME OVER: {reason_map.get(reason, 'Fin del juego')}")
+                    print(f"ℹ️ - GAME OVER: {reason_map.get(reason, '')}")
                     print(f"ℹ️ - FINAL RESULTS: Player 1: {self.map_manager.player1.points}, Player 2: {self.map_manager.player2.points}")
                     print(f"ℹ️ - WINNER: {'PLAYER 1' if self.map_manager.player1.points > self.map_manager.player2.points else 'PLAYER 2' if self.map_manager.player2.points > self.map_manager.player1.points else 'TIE'}")
                     
-                    # Generar archivo CSV con estadísticas antes de mostrar pantalla de fin
+                    # Generate CSV file with statistics before showing end screen
                     try:
                         csv_file = self.map_manager.generate_game_stats_csv(reason)
                         if csv_file:
                             print(f"📊 - GAME STATISTICS SAVED: {csv_file}")
-                    except Exception as e:
-                        print(f"❌ - ERROR GENERATING STATISTICS: {e}")
+                    except Exception as error:
+                        print(f"❌ - ERROR GENERATING STATISTICS: {error}")
                     
-                    # Mostrar pantalla de fin de juego
+                    # Show game over screen
                     self.show_game_over_screen(reason)
                     self.running = False
                     break

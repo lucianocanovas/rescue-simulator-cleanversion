@@ -6,8 +6,8 @@ class Item:
         self.position = position
         try:
             self.sprite = load_sprite(sprite)
-        except Exception as e:
-            print(f"❌ - ERROR LOADING THE ITEM SPRITE: {e}")
+        except Exception as error:
+            print(f"❌ - ERROR LOADING THE ITEM SPRITE: {error}")
             self.sprite = None
 
 class Person(Item):
