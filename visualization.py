@@ -1,7 +1,7 @@
 import pygame
 import os
 import json
-from assets import load_sprite, load_sound
+from assets import load_sprite, load_sound, load_font
 from map_manager import MapManager
 from classes.Mine import Mine
 
@@ -148,8 +148,8 @@ class Visualization:
         pygame.draw.rect(self.screen, RED, (self.window_size - CELL_SIZE, 0, CELL_SIZE, CELL_SIZE * self.map_manager.height))
 
     def draw_player_info(self):
-        font = pygame.font.SysFont(None, 40)
-        box_w, box_h = 180, 48
+        font = load_font('minecraft.ttf', 32)
+        box_w, box_h = 180, 50
         box_x = (self.window_size - box_w) // 2
         box_y = (self.window_size - box_h)
         
@@ -161,7 +161,7 @@ class Visualization:
         
         # Fondo blanco con 50% de opacidad
         bg_surface = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-        bg_surface.fill((255, 255, 255, 64))  # RGBA: blanco con alpha=128 (50%)
+        bg_surface.fill((255, 255, 255, 0))  # RGBA: blanco con alpha=128 (50%)
         self.screen.blit(bg_surface, (box_x, box_y))
         
         # Read points from Player objects so scoreboard reflects actual points
@@ -172,8 +172,8 @@ class Visualization:
         self.screen.blit(score_text, score_rect)
 
         # Show current turn number in the upper part
-        turn_font = pygame.font.SysFont(None, 28)
-        turn_text = turn_font.render(f"Turn: {self.current_turn}", True, BLACK)
+        turn_font = load_font('minecraft.ttf', 32)
+        turn_text = turn_font.render(f"{self.current_turn}", True, BLACK)
         turn_rect = turn_text.get_rect(center=(self.window_size // 2, 20))
         self.screen.blit(turn_text, turn_rect)
 
@@ -185,6 +185,109 @@ class Visualization:
         self.draw_grid()
         self.draw_player_info()
         pygame.display.flip()
+    
+    def show_controls_screen(self):
+        """Muestra la pantalla de controles antes de comenzar la partida."""
+        # Cargar imágenes de las teclas
+        try:
+            arrow_left = load_sprite('ARROWLEFT.png')
+            arrow_right = load_sprite('ARROWRIGHT.png')
+            space_key = load_sprite('SPACE.png')
+        except Exception as e:
+            print(f"[WARNING] No se pudieron cargar imágenes de teclas: {e}")
+            arrow_left = None
+            arrow_right = None
+            space_key = None
+        
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    waiting = False
+                    self.running = False
+                    pygame.quit()
+                    return
+                if event.type == pygame.KEYDOWN:
+                    waiting = False
+            
+            # Dibujar el estado del juego de fondo
+            self.screen.fill(WHITE)
+            self.draw_bases()
+            self.draw_objects()
+            self.draw_grid()
+            
+            # Overlay oscuro semi-transparente sobre el tablero
+            overlay = pygame.Surface((self.window_size, self.window_size), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 200))  # Negro con 78% opacidad
+            self.screen.blit(overlay, (0, 0))
+            
+            # Título principal
+            title_font = load_font('minecraft.ttf', 72)
+            title_text = title_font.render("RESCUE SIMULATOR", True, WHITE)
+            title_rect = title_text.get_rect(center=(self.window_size // 2, 100))
+            self.screen.blit(title_text, title_rect)
+            
+            # Configuración de layout
+            key_size = 70
+            desc_font = load_font('minecraft.ttf', 32)
+            
+            # Posición inicial más abajo del título
+            start_y = 200
+            
+            # Espaciado entre cada bloque completo (imagen + texto + margen)
+            block_spacing = 160  # Más separación entre bloques
+            text_offset = 10     # Menos espacio entre imagen y texto (más juntos)
+            
+            # Control 1: Flecha Izquierda
+            current_y = start_y
+            if arrow_left:
+                # Imagen centrada
+                arrow_left_scaled = pygame.transform.scale(arrow_left, (key_size, key_size))
+                img_rect = arrow_left_scaled.get_rect(center=(self.window_size // 2, current_y))
+                self.screen.blit(arrow_left_scaled, img_rect)
+                
+                # Texto centrado debajo de la imagen con más espacio
+                text_y = current_y + key_size + text_offset
+                desc_text = desc_font.render("Retroceder turno", True, WHITE)
+                desc_rect = desc_text.get_rect(center=(self.window_size // 2, text_y))
+                self.screen.blit(desc_text, desc_rect)
+            
+            # Control 2: Flecha Derecha
+            current_y = start_y + block_spacing
+            if arrow_right:
+                # Imagen centrada
+                arrow_right_scaled = pygame.transform.scale(arrow_right, (key_size, key_size))
+                img_rect = arrow_right_scaled.get_rect(center=(self.window_size // 2, current_y))
+                self.screen.blit(arrow_right_scaled, img_rect)
+                
+                # Texto centrado debajo de la imagen con más espacio
+                text_y = current_y + key_size + text_offset
+                desc_text = desc_font.render("Avanzar turno", True, WHITE)
+                desc_rect = desc_text.get_rect(center=(self.window_size // 2, text_y))
+                self.screen.blit(desc_text, desc_rect)
+            
+            # Control 3: Espacio
+            current_y = start_y + block_spacing * 2
+            if space_key:
+                # Imagen centrada (más ancha)
+                space_scaled = pygame.transform.scale(space_key, (key_size * 2.5, key_size))
+                img_rect = space_scaled.get_rect(center=(self.window_size // 2, current_y))
+                self.screen.blit(space_scaled, img_rect)
+                
+                # Texto centrado debajo de la imagen con más espacio
+                text_y = current_y + key_size + text_offset
+                desc_text = desc_font.render("Autoplay ON/OFF", True, WHITE)
+                desc_rect = desc_text.get_rect(center=(self.window_size // 2, text_y))
+                self.screen.blit(desc_text, desc_rect)
+            
+            # Instrucción para comenzar
+            continue_font = load_font('minecraft.ttf', 24)
+            continue_text = continue_font.render("Presiona cualquier tecla para comenzar", True, (255, 255, 255))
+            continue_rect = continue_text.get_rect(center=(self.window_size // 2, self.window_size - 50))
+            self.screen.blit(continue_text, continue_rect)
+            
+            pygame.display.flip()
+            self.clock.tick(30)
     
     def show_game_over_screen(self, reason):
         """Muestra la pantalla de fin de juego y espera a que el usuario presione una tecla."""
@@ -243,25 +346,25 @@ class Visualization:
             self.screen.blit(overlay, (0, 0))
             
             # Título "FIN DEL JUEGO"
-            title_font = pygame.font.SysFont(None, 72)
+            title_font = load_font('minecraft.ttf', 72)
             title_text = title_font.render("FIN DEL JUEGO", True, WHITE)
             title_rect = title_text.get_rect(center=(self.window_size // 2, self.window_size // 3))
             self.screen.blit(title_text, title_rect)
             
             # Razón del fin
-            reason_font = pygame.font.SysFont(None, 32)
+            reason_font = load_font('minecraft.ttf', 32)
             reason_render = reason_font.render(reason_text, True, GRAY)
             reason_rect = reason_render.get_rect(center=(self.window_size // 2, self.window_size // 3 + 60))
             self.screen.blit(reason_render, reason_rect)
             
             # Ganador
-            winner_font = pygame.font.SysFont(None, 64)
+            winner_font = load_font('minecraft.ttf', 48)
             winner_render = winner_font.render(winner_text, True, winner_color)
             winner_rect = winner_render.get_rect(center=(self.window_size // 2, self.window_size // 2))
             self.screen.blit(winner_render, winner_rect)
             
             # Puntuaciones
-            score_font = pygame.font.SysFont(None, 48)
+            score_font = load_font('minecraft.ttf', 48)
             score_text = score_font.render(f"Jugador 1: {p1_score} pts", True, BLUE)
             score_rect = score_text.get_rect(center=(self.window_size // 2, self.window_size // 2 + 80))
             self.screen.blit(score_text, score_rect)
@@ -271,7 +374,7 @@ class Visualization:
             self.screen.blit(score_text2, score_rect2)
             
             # Instrucción para continuar
-            continue_font = pygame.font.SysFont(None, 28)
+            continue_font = load_font('minecraft.ttf', 28)
             continue_text = continue_font.render("Presiona cualquier tecla para salir", True, WHITE)
             continue_rect = continue_text.get_rect(center=(self.window_size // 2, self.window_size - 50))
             self.screen.blit(continue_text, continue_rect)
@@ -323,6 +426,13 @@ class Visualization:
                     pass
     
     def run(self):
+        # Mostrar pantalla de controles antes de comenzar
+        self.show_controls_screen()
+        
+        # Si el usuario cerró la ventana en la pantalla de controles, salir
+        if not self.running:
+            return
+        
         while self.running:
             # Check for game-over conditions each frame
             try:

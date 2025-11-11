@@ -19,8 +19,16 @@ class PickNearest(Strategy):
                 vehicle.path = path[1:]  # Excluir posición actual
                 vehicle.state = 'collecting'
                 return
+            # Si no hay items disponibles, volver a la base para no estorbar
+            else:
+                base_x = 0 if map_manager.player1 is vehicle.team else map_manager.width - 1
+                path = find_path_to_column(map_manager.grid, vehicle.position, base_x, map_manager.danger_zones)
+                if path:
+                    vehicle.path = path[1:]
+                    vehicle.state = 'returning'
+                return
         
-        # Si está lleno o no hay objetos, volver a la base
+        # Si está lleno, volver a la base
         base_x = 0 if map_manager.player1 is vehicle.team else map_manager.width - 1
         path = find_path_to_column(map_manager.grid, vehicle.position, base_x, map_manager.danger_zones)
         if path:
@@ -125,8 +133,16 @@ class Invader(Strategy):
                 vehicle.path = path[1:]  # Excluir posición actual
                 vehicle.state = 'collecting'
                 return
+            # Si no hay items disponibles, volver a la base para no estorbar
+            else:
+                base_x = 0 if map_manager.player1 is vehicle.team else map_manager.width - 1
+                path = find_path_to_column(map_manager.grid, vehicle.position, base_x, map_manager.danger_zones)
+                if path:
+                    vehicle.path = path[1:]
+                    vehicle.state = 'returning'
+                return
         
-        # Si está lleno o no hay objetos, volver a la base
+        # Si está lleno, volver a la base
         base_x = 0 if map_manager.player1 is vehicle.team else map_manager.width - 1
         path = find_path_to_column(map_manager.grid, vehicle.position, base_x, map_manager.danger_zones)
         if path:
@@ -298,19 +314,18 @@ class FullSafe(Strategy):
                     vehicle.state = 'collecting'
                     return
             
-            # Si no hay rutas seguras y el vehículo tiene carga, volver a la base
-            if len(vehicle.load) > 0:
-                base_x = 0 if map_manager.player1 is vehicle.team else map_manager.width - 1
-                danger_zones_base = self._create_danger_zones_with_timing(map_manager, max_path_estimate)
-                path = find_path_to_column(map_manager.grid, vehicle.position, base_x, danger_zones_base)
-                
-                if path and len(path) > 1:
-                    if self._is_path_safe_with_timing(path, map_manager):
-                        vehicle.path = path[1:]
-                        vehicle.state = 'returning'
-                        return
+            # Si no hay items disponibles o no hay rutas seguras, volver a la base para no estorbar
+            base_x = 0 if map_manager.player1 is vehicle.team else map_manager.width - 1
+            danger_zones_base = self._create_danger_zones_with_timing(map_manager, max_path_estimate)
+            path = find_path_to_column(map_manager.grid, vehicle.position, base_x, danger_zones_base)
             
-            # No hay rutas seguras, esperar
+            if path and len(path) > 1:
+                if self._is_path_safe_with_timing(path, map_manager):
+                    vehicle.path = path[1:]
+                    vehicle.state = 'returning'
+                    return
+            
+            # No hay rutas seguras ni a items ni a la base, esperar
             vehicle.path = []
             vehicle.state = 'waiting'
             return

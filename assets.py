@@ -9,14 +9,6 @@ def load_sprite(sprite_path: str):
     return pygame.image.load(path).convert_alpha()
 
 def load_sound(sound_path: str):
-    """Carga un archivo de sonido desde la carpeta assets.
-    
-    Args:
-        sound_path: Nombre del archivo de sonido (ej: 'unload.mp3')
-    
-    Returns:
-        pygame.mixer.Sound object o None si no se puede cargar
-    """
     try:
         assets_dir = os.path.join(os.path.dirname(__file__), "assets")
         path = os.path.join(assets_dir, sound_path)
@@ -27,3 +19,15 @@ def load_sound(sound_path: str):
     except Exception as e:
         print(f"[ERROR] Error al cargar sonido {sound_path}: {e}")
         return None
+
+def load_font(font_path: str, size: int):
+    try:
+        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        path = os.path.join(assets_dir, font_path)
+        if not os.path.isfile(path):
+            print(f"[WARNING] Archivo de fuente no encontrado: {path}, usando fuente por defecto")
+            return pygame.font.SysFont(None, size)
+        return pygame.font.Font(path, size)
+    except Exception as e:
+        print(f"[ERROR] Error al cargar fuente {font_path}: {e}, usando fuente por defecto")
+        return pygame.font.SysFont(None, size)

@@ -65,6 +65,14 @@ class Vehicle:
                 self.path = path[1:]
                 self.state = 'collecting'
                 return
+            # Si no hay items disponibles, volver a la base para no estorbar
+            else:
+                base_x = 0 if map_manager.player1 is self.team else map_manager.width - 1
+                path = find_path_to_column(map_manager.grid, self.position, base_x, map_manager.danger_zones)
+                if path:
+                    self.path = path[1:]
+                    self.state = 'returning'
+                return
         # Otherwise, plan path to base
         base_x = 0 if map_manager.player1 is self.team else map_manager.width - 1
         path = find_path_to_column(map_manager.grid, self.position, base_x, map_manager.danger_zones)
