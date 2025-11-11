@@ -40,7 +40,14 @@ class Visualization:
         self.clock = pygame.time.Clock()
         self.current_turn = 0
         self.autoplay = False
-        self.autoplay_delay = 1000  # 1 segundo = 1000 milisegundos
+        # Read autoplay delay (ms) from config.json, fall back to 1000 ms
+        try:
+            with open(CONFIG_PATH, 'r', encoding='utf-8') as _cfg_f:
+                _cfg = json.load(_cfg_f)
+            _viz = _cfg.get('visualization', {}) if isinstance(_cfg, dict) else {}
+            self.autoplay_delay = int(_viz.get('autoplay_delay', 1000))
+        except Exception:
+            self.autoplay_delay = 1000
         self.last_autoplay_time = pygame.time.get_ticks()
         self.running = True
         pygame.display.set_caption("Rescue Simulator")
@@ -183,7 +190,7 @@ class Visualization:
                     # Toggle autoplay on/off
                     self.autoplay = not self.autoplay
                     if self.autoplay:
-                        print("[INFO] Autoplay activado - Jugando 1 turno por segundo")
+                        print("[INFO] Autoplay activado")
                         self.last_autoplay_time = pygame.time.get_ticks()
                     else:
                         print("[INFO] Autoplay desactivado")
