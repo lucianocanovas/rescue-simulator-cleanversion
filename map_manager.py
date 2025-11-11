@@ -23,7 +23,7 @@ class MapManager:
         self.grid = [[None for _ in range(self.height)] for _ in range(self.width)]
         self.mines = []
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
-        self.current_game_folder = self._get_next_game_folder()  # Carpeta para la partida actual
+        self.current_game_folder = None  # Se asignará cuando se cree o cargue una partida
         self.explosions = []
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
@@ -153,6 +153,8 @@ class MapManager:
                         game_state['items'].append(serialize_item(obj))
 
         # ensure current game folder exists
+        if self.current_game_folder is None:
+            self.current_game_folder = self._get_next_game_folder()
         if not os.path.exists(self.current_game_folder):
             os.makedirs(self.current_game_folder, exist_ok=True)
 
@@ -176,6 +178,10 @@ class MapManager:
             return False
 
         try:
+            # Actualizar current_game_folder para que apunte a la carpeta de la partida cargada
+            # Extraemos la carpeta padre del archivo cargado (ej: saved_games/Partida_5)
+            self.current_game_folder = os.path.dirname(os.path.abspath(filename))
+            
             # Basic properties
             self.width = game_state.get('width', self.width)
             self.height = game_state.get('height', self.height)
@@ -331,6 +337,10 @@ class MapManager:
     def new_game(self):
         # Inicializa un nuevo tablero y coloca vehículos, minas y items
         self.clear()
+        
+        # Crear carpeta para la nueva partida
+        if self.current_game_folder is None:
+            self.current_game_folder = self._get_next_game_folder()
 
         # Setup Player 1 Vehicles
         self.player1.add_vehicle(Truck(self.player1, (0, 2)))

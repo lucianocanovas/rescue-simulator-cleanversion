@@ -19,6 +19,9 @@ class GameEngine:
         
         # Inicializamos el gestor del mapa con las estrategias por defecto
         self.map_manager = MapManager(player1_strategy=PickNearest(), player2_strategy=PickNearest())
+        
+        # Variable para rastrear el turno inicial
+        initial_turn = 0
 
         if saved_game:
             # Intentamos cargar la partida solicitada en el turno indicado
@@ -26,6 +29,10 @@ class GameEngine:
             if not loaded:
                 print(f"[ERROR] No se pudo cargar la partida especificada: {saved_game}. Se inicia nueva partida.")
                 self.map_manager.new_game()
+            else:
+                # Si la carga fue exitosa, usar el turno especificado
+                initial_turn = saved_turn if saved_turn is not None else 0
+                print(f"[INFO] Partida cargada: {saved_game} - Turno: {initial_turn}")
         else:
             # Iniciamos una nueva partida
             self.map_manager.new_game()
@@ -34,8 +41,10 @@ class GameEngine:
                 self.map_manager.save_game(0)
             except Exception:
                 pass
-        # Inicializamos la visualización
+        
+        # Inicializamos la visualización con el turno inicial correcto
         self.visualization = Visualization(self.map_manager)
+        self.visualization.current_turn = initial_turn
 
     def start(self):
         self.visualization.run()
@@ -57,7 +66,8 @@ def main():
             choice = 'n'
         else:
             partidas = [d for d in os.listdir(base_dir) if d.startswith('Partida_')]
-            partidas.sort()
+            # Ordenar numéricamente por el número de partida
+            partidas.sort(key=lambda x: int(x.split('_')[1]))
             if not partidas:
                 print("No se encontraron carpetas de partidas. Se creará una partida nueva.")
                 choice = 'n'
@@ -77,7 +87,8 @@ def main():
                         sel_folder = os.path.join(base_dir, partidas[idx])
                         # listar turnos disponibles
                         turno_files = [f for f in os.listdir(sel_folder) if f.startswith('turno_') and f.endswith('.pkl')]
-                        turno_files.sort()
+                        # Ordenar numéricamente por el número de turno
+                        turno_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
                         if not turno_files:
                             print("No hay turnos guardados en esa partida. Se iniciará una nueva partida.")
                             choice = 'n'

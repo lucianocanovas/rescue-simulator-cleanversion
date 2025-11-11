@@ -39,6 +39,9 @@ class Visualization:
         self.screen = pygame.display.get_surface()
         self.clock = pygame.time.Clock()
         self.current_turn = 0
+        self.autoplay = False
+        self.autoplay_delay = 1000  # 1 segundo = 1000 milisegundos
+        self.last_autoplay_time = pygame.time.get_ticks()
         self.running = True
         pygame.display.set_caption("Rescue Simulator")
         # Cargar sprite de explosión una vez
@@ -54,6 +57,8 @@ class Visualization:
             pygame.draw.line(self.screen, GRAY, (0, y), (self.window_size, y))
     
     def draw_objects(self):
+        from classes.Vehicle import Vehicle, Truck, Jeep, Car, Motorcycle
+        
         # Primero dibujamos todos los sprites de objetos
         for x in range(self.map_manager.width):
             for y in range(self.map_manager.height):
@@ -61,6 +66,26 @@ class Visualization:
                 if obj is not None:
                     pixel_x = x * CELL_SIZE
                     pixel_y = y * CELL_SIZE
+                    
+                    # Si es un vehículo, dibujar fondo de color con transparencia
+                    if isinstance(obj, Vehicle):
+                        bg_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+                        
+                        # Determinar color según tipo de vehículo
+                        if isinstance(obj, Truck):
+                            color = (255, 0, 0)  # Rojo con 50% transparencia
+                        elif isinstance(obj, Jeep):
+                            color = (255, 255, 0)  # Amarillo con 50% transparencia
+                        elif isinstance(obj, Car):
+                            color = (255, 165, 0)  # Naranja con 50% transparencia
+                        elif isinstance(obj, Motorcycle):
+                            color = (0, 255, 0)  # Verde con 50% transparencia
+                        else:
+                            color = (200, 200, 200)  # Gris por defecto
+                        
+                        bg_surface.fill(color)
+                        self.screen.blit(bg_surface, (pixel_x, pixel_y))
+                    
                     scaled_sprite = pygame.transform.scale(obj.sprite, (CELL_SIZE, CELL_SIZE))
                     self.screen.blit(scaled_sprite, (pixel_x, pixel_y))
         
@@ -115,14 +140,30 @@ class Visualization:
         box_w, box_h = 180, 48
         box_x = (self.window_size - box_w) // 2
         box_y = (self.window_size - box_h)
-        pygame.draw.rect(self.screen, (0 ,0 ,0), (box_x - 2, box_y - 2, box_w + 4, box_h + 4))
-        pygame.draw.rect(self.screen, (255, 255, 255), (box_x, box_y, box_w, box_h))
+        
+        # Crear superficies con transparencia para el fondo
+        # Borde negro con 50% de opacidad
+        border_surface = pygame.Surface((box_w + 4, box_h + 4), pygame.SRCALPHA)
+        border_surface.fill((0, 0, 0, 64))  # RGBA: negro con alpha=128 (50%)
+        self.screen.blit(border_surface, (box_x - 2, box_y - 2))
+        
+        # Fondo blanco con 50% de opacidad
+        bg_surface = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        bg_surface.fill((255, 255, 255, 64))  # RGBA: blanco con alpha=128 (50%)
+        self.screen.blit(bg_surface, (box_x, box_y))
+        
         # Read points from Player objects so scoreboard reflects actual points
         p1_score = getattr(self.map_manager.player1, "points", 0)
         p2_score = getattr(self.map_manager.player2, "points", 0)
         score_text = font.render(f"{p1_score}  -  {p2_score}", True, BLACK)
         score_rect = score_text.get_rect(center=(box_x + box_w // 2, box_y + box_h // 2))
         self.screen.blit(score_text, score_rect)
+
+        # Show current turn number in the upper part
+        turn_font = pygame.font.SysFont(None, 28)
+        turn_text = turn_font.render(f"Turn: {self.current_turn}", True, BLACK)
+        turn_rect = turn_text.get_rect(center=(self.window_size // 2, 20))
+        self.screen.blit(turn_text, turn_rect)
 
     def render(self):
         self.screen.fill(WHITE)
@@ -138,6 +179,14 @@ class Visualization:
             if event.type == pygame.QUIT:
                 self.running = False
             if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    # Toggle autoplay on/off
+                    self.autoplay = not self.autoplay
+                    if self.autoplay:
+                        print("[INFO] Autoplay activado - Jugando 1 turno por segundo")
+                        self.last_autoplay_time = pygame.time.get_ticks()
+                    else:
+                        print("[INFO] Autoplay desactivado")
                 if event.key == pygame.K_RIGHT:
                     if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
                         self.current_turn += 1
@@ -188,6 +237,23 @@ class Visualization:
                 pass
 
             self.handle_events()
+            
+            # Autoplay logic: advance turn every second if autoplay is True
+            if self.autoplay:
+                current_time = pygame.time.get_ticks()
+                if current_time - self.last_autoplay_time >= self.autoplay_delay:
+                    # Check if there are vehicles before advancing
+                    if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
+                        self.current_turn += 1
+                        self.map_manager.next_turn(self.current_turn)
+                        saved_file = self.map_manager.save_game(self.current_turn)
+                        print(f"[AUTOPLAY] Turno: {self.current_turn} — guardado en: {saved_file}")
+                        self.last_autoplay_time = current_time
+                    else:
+                        # No vehicles left, stop autoplay
+                        self.autoplay = False
+                        print("[INFO] Autoplay desactivado - No quedan vehículos")
+            
             self.render()
             self.clock.tick(60)
 
