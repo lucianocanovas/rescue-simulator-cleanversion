@@ -23,7 +23,6 @@ class MapManager:
         self.grid = [[None for _ in range(self.height)] for _ in range(self.width)]
         self.mines = []
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
-        self.collision_policy = 'allow_crash'
         self.current_game_folder = self._get_next_game_folder()  # Carpeta para la partida actual
         self.explosions = []
                 
@@ -56,7 +55,6 @@ class MapManager:
             pass
     
     def _get_next_game_folder(self):
-        """Obtiene el número de la siguiente partida"""
         # Aseguramos que exista el directorio principal saved_games
         base_dir = "saved_games"
         if not os.path.exists(base_dir):
@@ -451,25 +449,6 @@ class MapManager:
             if nxt is not None:
                 target_map.setdefault(nxt, []).append(v)
                 intent_by_vehicle[v] = nxt
-
-    # RESOLVER CONFLICTOS ENTRE VEHÍCULOS QUE QUIEREN LA MISMA CASILLA
-        for target, vs in list(target_map.items()):
-            if len(vs) <= 1:
-                continue
-            # If policy is allow_crash, let them all move and let post-collision handle it
-            if self.collision_policy == 'allow_crash':
-                continue
-
-            # prefer_move: pick one vehicle to move (highest capacity), others yield
-            winner = max(vs, key=lambda v: getattr(v, 'capacity', 0))
-            for v in vs:
-                if v is not winner:
-                    # make loser abandon planned step this turn
-                    v.path = []
-                    try:
-                        del intent_by_vehicle[v]
-                    except Exception:
-                        pass
 
     # FASE DE EJECUCIÓN: realizar los movimientos aprobados
         for v, target in list(intent_by_vehicle.items()):

@@ -1,6 +1,6 @@
 import os
 from map_manager import MapManager
-from visualization import Visualization
+from visualization import Visualization, CELL_SIZE
 from strategies import PickNearest, Kamikaze, Escort, Invader
 import pygame
 
@@ -10,7 +10,6 @@ class GameEngine:
         # Ajustamos la ventana al tamaño del mapa (ancho x alto) usando CELL_SIZE de visualization
         # Importamos Visualization's CELL_SIZE indirectamente: asumimos 16 por defecto si no está disponible
         try:
-            from visualization import CELL_SIZE
             win_w = 50 * CELL_SIZE
             win_h = 50 * CELL_SIZE
         except Exception:
