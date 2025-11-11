@@ -5,7 +5,7 @@ from pathfinding import find_nearest, find_path_to_column
 from classes.Mine import Mine
 
 class Vehicle:
-    def __init__(self, team: Player, position: tuple[int, int], capacity: int, sprite: str, load: list[Item] = [], only_persons: bool = False, exclude_persons: bool = False):
+    def __init__(self, team: Player, position: tuple[int, int], capacity: int, sprite: str, load: list[Item] = [], only_persons: bool = False, exclude_persons: bool = False, strategy=None):
         self.team = team
         self.position = position
         self.capacity = capacity
@@ -20,6 +20,7 @@ class Vehicle:
         self.state: str = 'idle'
         self.only_persons = only_persons  # Motocicletas: solo personas
         self.exclude_persons = exclude_persons  # Camiones y Jeeps: no personas
+        self.strategy = strategy  # Estrategia del vehículo
         try:
             self.sprite = load_sprite(sprite)
         except Exception as e:
@@ -45,6 +46,15 @@ class Vehicle:
         Sets self.path (list of positions excluding current) and self.state.
         Does not modify the map.
         """
+        # Si el vehículo tiene una estrategia, usarla
+        if self.strategy is not None:
+            try:
+                self.strategy.plan(self, map_manager)
+                return
+            except Exception as e:
+                print(f"[WARNING] Error al ejecutar estrategia: {e}. Usando estrategia por defecto.")
+        
+        # Estrategia por defecto (PickNearest)
         if self.path:
             return
         # If not full, find nearest safe item
@@ -206,17 +216,17 @@ class Vehicle:
         pass
 
 class Truck(Vehicle):
-    def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=3, sprite="truck.png", load=[], only_persons=False, exclude_persons=True)
+    def __init__(self, team: Player, position: tuple[int, int], strategy=None):
+        super().__init__(team, position, capacity=3, sprite="truck.png", load=[], only_persons=False, exclude_persons=True, strategy=strategy)
 
 class Jeep(Vehicle):
-    def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team ,position, capacity=2, sprite="jeep.png", load=[], only_persons=False, exclude_persons=True)
+    def __init__(self, team: Player, position: tuple[int, int], strategy=None):
+        super().__init__(team ,position, capacity=2, sprite="jeep.png", load=[], only_persons=False, exclude_persons=True, strategy=strategy)
 
 class Car(Vehicle):
-    def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=1, sprite="car.png", load=[], only_persons=False, exclude_persons=False)
+    def __init__(self, team: Player, position: tuple[int, int], strategy=None):
+        super().__init__(team, position, capacity=1, sprite="car.png", load=[], only_persons=False, exclude_persons=False, strategy=strategy)
 
 class Motorcycle(Vehicle):
-    def __init__(self, team: Player, position: tuple[int, int]):
-        super().__init__(team, position, capacity=1, sprite="motorcycle.png", load=[], only_persons=True, exclude_persons=False)
+    def __init__(self, team: Player, position: tuple[int, int], strategy=None):
+        super().__init__(team, position, capacity=1, sprite="motorcycle.png", load=[], only_persons=True, exclude_persons=False, strategy=strategy)

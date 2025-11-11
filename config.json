@@ -7,10 +7,28 @@
 
   "strategies": {
     "player1": [
-      null, null, null, null, null, null, null, null, null, null
+      "PickNearest",
+      "Invader",
+      "PickNearest",
+      "Escort",
+      "Kamikaze",
+      "PickNearest",
+      "Invader",
+      "Escort",
+      "PickNearest",
+      "Kamikaze"
     ],
     "player2": [
-      null, null, null, null, null, null, null, null, null, null
+      "Invader",
+      "PickNearest",
+      "Kamikaze",
+      "PickNearest",
+      "Escort",
+      "Invader",
+      "PickNearest",
+      "Kamikaze",
+      "Escort",
+      "PickNearest"
     ]
   }
 

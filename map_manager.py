@@ -341,33 +341,81 @@ class MapManager:
         # Crear carpeta para la nueva partida
         if self.current_game_folder is None:
             self.current_game_folder = self._get_next_game_folder()
+        
+        # Cargar estrategias desde config.json
+        strategies_p1 = []
+        strategies_p2 = []
+        try:
+            import json
+            config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            strategies_config = config.get('strategies', {})
+            strategy_names_p1 = strategies_config.get('player1', [])
+            strategy_names_p2 = strategies_config.get('player2', [])
+            
+            # Importar las clases de estrategia
+            from strategies import PickNearest, Kamikaze, Escort, Invader
+            strategy_map = {
+                'PickNearest': PickNearest,
+                'Kamikaze': Kamikaze,
+                'Escort': Escort,
+                'Invader': Invader
+            }
+            
+            # Crear instancias de estrategias para player1
+            for name in strategy_names_p1:
+                if name in strategy_map:
+                    strategies_p1.append(strategy_map[name]())
+                else:
+                    strategies_p1.append(PickNearest())  # Default
+            
+            # Crear instancias de estrategias para player2
+            for name in strategy_names_p2:
+                if name in strategy_map:
+                    strategies_p2.append(strategy_map[name]())
+                else:
+                    strategies_p2.append(PickNearest())  # Default
+        except Exception as e:
+            print(f"[WARNING] No se pudieron cargar estrategias del config: {e}. Usando PickNearest por defecto.")
+            from strategies import PickNearest
+            strategies_p1 = [PickNearest() for _ in range(10)]
+            strategies_p2 = [PickNearest() for _ in range(10)]
+        
+        # Asegurar que hay 10 estrategias
+        while len(strategies_p1) < 10:
+            from strategies import PickNearest
+            strategies_p1.append(PickNearest())
+        while len(strategies_p2) < 10:
+            from strategies import PickNearest
+            strategies_p2.append(PickNearest())
 
-        # Setup Player 1 Vehicles
-        self.player1.add_vehicle(Truck(self.player1, (0, 2)))
-        self.player1.add_vehicle(Truck(self.player1, (0, 7)))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 12)))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 17)))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 22)))
-        self.player1.add_vehicle(Car(self.player1, (0, 27)))
-        self.player1.add_vehicle(Car(self.player1, (0, 32)))
-        self.player1.add_vehicle(Car(self.player1, (0, 37)))
-        self.player1.add_vehicle(Motorcycle(self.player1, (0, 42)))
-        self.player1.add_vehicle(Motorcycle(self.player1, (0, 47)))
+        # Setup Player 1 Vehicles (orden: Truck, Truck, Jeep, Jeep, Jeep, Car, Car, Car, Moto, Moto)
+        self.player1.add_vehicle(Truck(self.player1, (0, 2), strategy=strategies_p1[0]))
+        self.player1.add_vehicle(Truck(self.player1, (0, 7), strategy=strategies_p1[1]))
+        self.player1.add_vehicle(Jeep(self.player1, (0, 12), strategy=strategies_p1[2]))
+        self.player1.add_vehicle(Jeep(self.player1, (0, 17), strategy=strategies_p1[3]))
+        self.player1.add_vehicle(Jeep(self.player1, (0, 22), strategy=strategies_p1[4]))
+        self.player1.add_vehicle(Car(self.player1, (0, 27), strategy=strategies_p1[5]))
+        self.player1.add_vehicle(Car(self.player1, (0, 32), strategy=strategies_p1[6]))
+        self.player1.add_vehicle(Car(self.player1, (0, 37), strategy=strategies_p1[7]))
+        self.player1.add_vehicle(Motorcycle(self.player1, (0, 42), strategy=strategies_p1[8]))
+        self.player1.add_vehicle(Motorcycle(self.player1, (0, 47), strategy=strategies_p1[9]))
         for vehicle in self.player1.vehicles:
             x, y = vehicle.position
             self.grid[x][y] = vehicle
 
         # Setup Player 2 Vehicles
-        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 2)))
-        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 7)))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 12)))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 17)))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 22)))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 27)))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 32)))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 37)))
-        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 42)))
-        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 47)))
+        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 2), strategy=strategies_p2[0]))
+        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 7), strategy=strategies_p2[1]))
+        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 12), strategy=strategies_p2[2]))
+        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 17), strategy=strategies_p2[3]))
+        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 22), strategy=strategies_p2[4]))
+        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 27), strategy=strategies_p2[5]))
+        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 32), strategy=strategies_p2[6]))
+        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 37), strategy=strategies_p2[7]))
+        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 42), strategy=strategies_p2[8]))
+        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 47), strategy=strategies_p2[9]))
         for vehicle in self.player2.vehicles:
             x, y = vehicle.position
             self.grid[x][y] = vehicle
@@ -638,10 +686,14 @@ class MapManager:
                     pass
 
         items_in_vehicles = 0
+        vehicles_with_load = []
         vehicles = list(getattr(self.player1, 'vehicles', [])) + list(getattr(self.player2, 'vehicles', []))
         for v in vehicles:
             try:
-                items_in_vehicles += len(getattr(v, 'load', []))
+                vehicle_load = len(getattr(v, 'load', []))
+                items_in_vehicles += vehicle_load
+                if vehicle_load > 0:
+                    vehicles_with_load.append(v)
             except Exception:
                 pass
             try:
@@ -654,10 +706,16 @@ class MapManager:
             return True, 'no_items'
 
         # 3) Items exist on the map but no available vehicle can reach any of them
-        # If there are no items on the grid (all are inside vehicles), the game is not over.
+        # IMPORTANT: If there are vehicles with items loaded, the game must continue
+        # so they can deliver them, even if there are no more reachable items on the grid
         if not items_on_grid:
-            return False, None
+            # Si no hay items en el grid pero hay vehículos con carga, el juego continúa
+            if vehicles_with_load:
+                return False, None
+            # Si no hay items en el grid ni vehículos con carga, el juego termina
+            return True, 'no_items'
 
+        # Check if any vehicle can reach items on the grid
         # Use pathfinding utilities to check reachability from each vehicle that
         # is able to pick items (not full).
         try:
@@ -684,4 +742,9 @@ class MapManager:
                 continue
 
         # No vehicle can reach any on-grid item
+        # BUT: if there are vehicles with items loaded, they need to deliver them first
+        if vehicles_with_load:
+            return False, None
+        
+        # No hay items alcanzables Y no hay vehículos con carga
         return True, 'no_reachable_items'

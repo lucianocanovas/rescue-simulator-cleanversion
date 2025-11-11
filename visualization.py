@@ -1,7 +1,7 @@
 import pygame
 import os
 import json
-from assets import load_sprite
+from assets import load_sprite, load_sound
 from map_manager import MapManager
 from classes.Mine import Mine
 
@@ -56,6 +56,11 @@ class Visualization:
             self.explosion_sprite = load_sprite('explosion.png')
         except Exception:
             self.explosion_sprite = None
+        # Cargar sonido de victoria
+        try:
+            self.victory_sound = load_sound('victory.mp3')
+        except Exception:
+            self.victory_sound = None
         
     def draw_grid(self):
         for x in range(0, self.window_size, CELL_SIZE):
@@ -181,6 +186,102 @@ class Visualization:
         self.draw_player_info()
         pygame.display.flip()
     
+    def show_game_over_screen(self, reason):
+        """Muestra la pantalla de fin de juego y espera a que el usuario presione una tecla."""
+        
+        # Reproducir sonido de victoria con volumen reducido
+        if self.victory_sound is not None:
+            try:
+                self.victory_sound.set_volume(0.3)  # 30% del volumen (0.0 a 1.0)
+                self.victory_sound.play()
+            except Exception:
+                pass
+
+        # Determinar el ganador
+        p1_score = self.map_manager.player1.points
+        p2_score = self.map_manager.player2.points
+        
+        if p1_score > p2_score:
+            winner_text = "¡JUGADOR 1 GANA!"
+            winner_color = BLUE
+        elif p2_score > p1_score:
+            winner_text = "¡JUGADOR 2 GANA!"
+            winner_color = RED
+        else:
+            winner_text = "¡EMPATE!"
+            winner_color = BLACK
+        
+        # Mensaje de razón del fin
+        reason_map = {
+            'no_vehicles': 'No quedan vehículos',
+            'no_items': 'No quedan objetos',
+            'no_reachable_items': 'No hay objetos alcanzables'
+        }
+        reason_text = reason_map.get(reason, 'Fin del juego')
+        
+        # Loop de la pantalla de game over
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    waiting = False
+                    pygame.quit()
+                    return
+                if event.type == pygame.KEYDOWN:
+                    waiting = False
+            
+            # Dibujar el estado final del juego
+            self.screen.fill(WHITE)
+            self.draw_bases()
+            self.draw_objects()
+            self.draw_explosions()
+            self.draw_grid()
+            
+            # Overlay semi-transparente
+            overlay = pygame.Surface((self.window_size, self.window_size), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 180))  # Negro con 70% opacidad
+            self.screen.blit(overlay, (0, 0))
+            
+            # Título "FIN DEL JUEGO"
+            title_font = pygame.font.SysFont(None, 72)
+            title_text = title_font.render("FIN DEL JUEGO", True, WHITE)
+            title_rect = title_text.get_rect(center=(self.window_size // 2, self.window_size // 3))
+            self.screen.blit(title_text, title_rect)
+            
+            # Razón del fin
+            reason_font = pygame.font.SysFont(None, 32)
+            reason_render = reason_font.render(reason_text, True, GRAY)
+            reason_rect = reason_render.get_rect(center=(self.window_size // 2, self.window_size // 3 + 60))
+            self.screen.blit(reason_render, reason_rect)
+            
+            # Ganador
+            winner_font = pygame.font.SysFont(None, 64)
+            winner_render = winner_font.render(winner_text, True, winner_color)
+            winner_rect = winner_render.get_rect(center=(self.window_size // 2, self.window_size // 2))
+            self.screen.blit(winner_render, winner_rect)
+            
+            # Puntuaciones
+            score_font = pygame.font.SysFont(None, 48)
+            score_text = score_font.render(f"Jugador 1: {p1_score} pts", True, BLUE)
+            score_rect = score_text.get_rect(center=(self.window_size // 2, self.window_size // 2 + 80))
+            self.screen.blit(score_text, score_rect)
+            
+            score_text2 = score_font.render(f"Jugador 2: {p2_score} pts", True, RED)
+            score_rect2 = score_text2.get_rect(center=(self.window_size // 2, self.window_size // 2 + 130))
+            self.screen.blit(score_text2, score_rect2)
+            
+            # Instrucción para continuar
+            continue_font = pygame.font.SysFont(None, 28)
+            continue_text = continue_font.render("Presiona cualquier tecla para salir", True, WHITE)
+            continue_rect = continue_text.get_rect(center=(self.window_size // 2, self.window_size - 50))
+            self.screen.blit(continue_text, continue_rect)
+            
+
+        # Reproducible: play victory sound once (non-blocking)
+            
+            pygame.display.flip()
+            self.clock.tick(30)
+    
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -227,7 +328,7 @@ class Visualization:
             try:
                 over, reason = self.map_manager.is_game_over()
                 if over:
-                    # Print a concise message and stop the loop so the game ends
+                    # Print a concise message
                     reason_map = {
                         'no_vehicles': 'No quedan vehículos. Fin del juego.',
                         'no_items': 'No quedan objetos en la partida. Fin del juego.',
@@ -236,9 +337,10 @@ class Visualization:
                     print(f"[GAME OVER] {reason_map.get(reason, 'Fin del juego.')}")
                     print(f"[INFO] Resultado final: Jugador 1: {self.map_manager.player1.points} puntos | Jugador 2: {self.map_manager.player2.points} puntos")
                     print(f"[INFO] Ganador: {'Jugador 1' if self.map_manager.player1.points > self.map_manager.player2.points else 'Jugador 2' if self.map_manager.player2.points > self.map_manager.player1.points else 'Empate'}")
+                    
+                    # Mostrar pantalla de fin de juego
+                    self.show_game_over_screen(reason)
                     self.running = False
-                    # Render one last frame so the player sees the final state
-                    self.render()
                     break
             except Exception:
                 pass
