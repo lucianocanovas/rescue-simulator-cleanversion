@@ -392,30 +392,30 @@ class MapManager:
 
         # Setup Player 1 Vehicles (orden: Truck, Truck, Jeep, Jeep, Jeep, Car, Car, Car, Moto, Moto)
         self.player1.add_vehicle(Truck(self.player1, (0, 2), strategy=strategies_p1[0]))
-        self.player1.add_vehicle(Truck(self.player1, (0, 7), strategy=strategies_p1[1]))
+        self.player1.add_vehicle(Car(self.player1, (0, 7), strategy=strategies_p1[1]))
         self.player1.add_vehicle(Jeep(self.player1, (0, 12), strategy=strategies_p1[2]))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 17), strategy=strategies_p1[3]))
+        self.player1.add_vehicle(Motorcycle(self.player1, (0, 17), strategy=strategies_p1[3]))
         self.player1.add_vehicle(Jeep(self.player1, (0, 22), strategy=strategies_p1[4]))
         self.player1.add_vehicle(Car(self.player1, (0, 27), strategy=strategies_p1[5]))
-        self.player1.add_vehicle(Car(self.player1, (0, 32), strategy=strategies_p1[6]))
+        self.player1.add_vehicle(Truck(self.player1, (0, 32), strategy=strategies_p1[6]))
         self.player1.add_vehicle(Car(self.player1, (0, 37), strategy=strategies_p1[7]))
         self.player1.add_vehicle(Motorcycle(self.player1, (0, 42), strategy=strategies_p1[8]))
-        self.player1.add_vehicle(Motorcycle(self.player1, (0, 47), strategy=strategies_p1[9]))
+        self.player1.add_vehicle(Jeep(self.player1, (0, 47), strategy=strategies_p1[9]))
         for vehicle in self.player1.vehicles:
             x, y = vehicle.position
             self.grid[x][y] = vehicle
 
         # Setup Player 2 Vehicles
         self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 2), strategy=strategies_p2[0]))
-        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 7), strategy=strategies_p2[1]))
+        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 7), strategy=strategies_p2[1]))
         self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 12), strategy=strategies_p2[2]))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 17), strategy=strategies_p2[3]))
+        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 17), strategy=strategies_p2[3]))
         self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 22), strategy=strategies_p2[4]))
         self.player2.add_vehicle(Car(self.player2, (self.width - 1, 27), strategy=strategies_p2[5]))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 32), strategy=strategies_p2[6]))
+        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 32), strategy=strategies_p2[6]))
         self.player2.add_vehicle(Car(self.player2, (self.width - 1, 37), strategy=strategies_p2[7]))
         self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 42), strategy=strategies_p2[8]))
-        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 47), strategy=strategies_p2[9]))
+        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 47), strategy=strategies_p2[9]))
         for vehicle in self.player2.vehicles:
             x, y = vehicle.position
             self.grid[x][y] = vehicle
