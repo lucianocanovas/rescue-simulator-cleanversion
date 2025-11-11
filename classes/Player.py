@@ -8,23 +8,26 @@ from typing import Any
 
 
 class Player:
-    """Representa a un jugador.
-
-    Atributos:
-        name: nombre del jugador.
-        points: puntos acumulados.
-        vehicles: lista de vehículos propiedad del jugador.
-    """
-
     def __init__(self, name: str, strategy: Strategy):
         self.name: str = name
         self.points: int = 0
         self.vehicles: list[Any] = []
+        # Estadísticas de items recolectados por tipo
+        self.items_collected: dict[str, int] = {
+            'Person': 0,
+            'Weapon': 0,
+            'Clothing': 0,
+            'Food': 0,
+            'Heal': 0
+        }
 
     def add_vehicle(self, vehicle: Any) -> None:
-        """Añade un vehículo al jugador."""
         self.vehicles.append(vehicle)
 
     def add_points(self, points: int) -> None:
-        """Suma puntos al total del jugador."""
         self.points += points
+    
+    def register_item(self, item_type: str) -> None:
+        """Registra un item recolectado por tipo"""
+        if item_type in self.items_collected:
+            self.items_collected[item_type] += 1

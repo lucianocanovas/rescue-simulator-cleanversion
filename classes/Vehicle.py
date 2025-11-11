@@ -25,7 +25,7 @@ class Vehicle:
             self.sprite = load_sprite(sprite)
         except Exception as e:
             # Mensaje de error uniforme en español
-            print(f"[ERROR] Error al cargar sprite: {e}")
+            print(f"❌ - ERROR LOADING THE VEHICLE SPRITE: {e}")
             self.sprite = None
         # Cargar el sonido de descarga una sola vez (variable de clase)
         try:
@@ -42,17 +42,13 @@ class Vehicle:
         return
 
     def plan(self, map_manager):
-        """Plan a path if none exists: find nearest safe item or path to base.
-        Sets self.path (list of positions excluding current) and self.state.
-        Does not modify the map.
-        """
         # Si el vehículo tiene una estrategia, usarla
         if self.strategy is not None:
             try:
                 self.strategy.plan(self, map_manager)
                 return
             except Exception as e:
-                print(f"[WARNING] Error al ejecutar estrategia: {e}. Usando estrategia por defecto.")
+                print(f"❌ - ERROR IN VEHICLE STRATEGY PLAN: {e}, USING DEFAULT BEHAVIOR")
         
         # Estrategia por defecto (PickNearest)
         if self.path:
@@ -81,13 +77,9 @@ class Vehicle:
             self.state = 'returning'
 
     def peek_next(self):
-        """Return next planned position or None (does not modify path)."""
         return self.path[0] if self.path else None
 
     def execute_move(self, map_manager, target_pos: tuple[int, int]):
-        """Execute a single step to target_pos. Assumes MapManager approved the move.
-        Updates grid, position, picks items and handles unloading at base.
-        """
         nx, ny = target_pos
         if not (0 <= nx < map_manager.width and 0 <= ny < map_manager.height):
             self.path = []
@@ -154,6 +146,9 @@ class Vehicle:
                 for it in list(self.load):
                     try:
                         total += getattr(it, 'value', 0)
+                        # Registrar el tipo de item recolectado
+                        item_type = it.__class__.__name__
+                        self.team.register_item(item_type)
                     except Exception:
                         pass
                 try:
@@ -171,8 +166,6 @@ class Vehicle:
                 self.path = []
 
     def unload_if_at_base(self, map_manager):
-        """If the vehicle is at its team's base, unload all items, award points
-        to the team, and clear the load. Returns True if unload occurred."""
         if not self.load:
             return False
         base_x = 0 if map_manager.player1 is self.team else map_manager.width - 1
@@ -183,6 +176,9 @@ class Vehicle:
         for it in list(self.load):
             try:
                 total += getattr(it, 'value', 0)
+                # Registrar el tipo de item recolectado
+                item_type = it.__class__.__name__
+                self.team.register_item(item_type)
             except Exception:
                 pass
         try:

@@ -9,7 +9,7 @@ class Mine:
             self.sprite = load_sprite(sprite)
         except Exception as e:
             # Mensaje de error uniforme en español
-            print(f"[ERROR] Error al cargar sprite de mina: {e}")
+            print(f"❌ - ERROR LOADING THE MINE SPRITE: {e}")
             self.sprite = None
 
 class Mine_O1(Mine):

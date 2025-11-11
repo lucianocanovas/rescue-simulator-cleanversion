@@ -7,8 +7,7 @@ class Item:
         try:
             self.sprite = load_sprite(sprite)
         except Exception as e:
-            # Mensaje de error uniforme en español
-            print(f"[ERROR] Error al cargar sprite de item: {e}")
+            print(f"❌ - ERROR LOADING THE ITEM SPRITE: {e}")
             self.sprite = None
 
 class Person(Item):

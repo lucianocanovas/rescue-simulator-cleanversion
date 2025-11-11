@@ -194,7 +194,7 @@ class Visualization:
             arrow_right = load_sprite('ARROWRIGHT.png')
             space_key = load_sprite('SPACE.png')
         except Exception as e:
-            print(f"[WARNING] No se pudieron cargar imágenes de teclas: {e}")
+            print(f"❌ - ERROR LOADING CONTROL SPRITES: {e}")
             arrow_left = None
             arrow_right = None
             space_key = None
@@ -316,11 +316,11 @@ class Visualization:
         
         # Mensaje de razón del fin
         reason_map = {
-            'no_vehicles': 'No quedan vehículos',
-            'no_items': 'No quedan objetos',
-            'no_reachable_items': 'No hay objetos alcanzables'
+            'no_vehicles': 'NO VEHICLES LEFT',
+            'no_items': 'NO ITEMS LEFT',
+            'no_reachable_items': 'NO REACHABLE ITEMS LEFT'
         }
-        reason_text = reason_map.get(reason, 'Fin del juego')
+        reason_text = reason_map.get(reason, 'Game Over')
         
         # Loop de la pantalla de game over
         waiting = True
@@ -347,7 +347,7 @@ class Visualization:
             
             # Título "FIN DEL JUEGO"
             title_font = load_font('minecraft.ttf', 72)
-            title_text = title_font.render("FIN DEL JUEGO", True, WHITE)
+            title_text = title_font.render("GAME OVER", True, WHITE)
             title_rect = title_text.get_rect(center=(self.window_size // 2, self.window_size // 3))
             self.screen.blit(title_text, title_rect)
             
@@ -365,17 +365,17 @@ class Visualization:
             
             # Puntuaciones
             score_font = load_font('minecraft.ttf', 48)
-            score_text = score_font.render(f"Jugador 1: {p1_score} pts", True, BLUE)
+            score_text = score_font.render(f"PLAYER 1: {p1_score}", True, BLUE)
             score_rect = score_text.get_rect(center=(self.window_size // 2, self.window_size // 2 + 80))
             self.screen.blit(score_text, score_rect)
             
-            score_text2 = score_font.render(f"Jugador 2: {p2_score} pts", True, RED)
+            score_text2 = score_font.render(f"PLAYER 2: {p2_score}", True, RED)
             score_rect2 = score_text2.get_rect(center=(self.window_size // 2, self.window_size // 2 + 130))
             self.screen.blit(score_text2, score_rect2)
             
             # Instrucción para continuar
             continue_font = load_font('minecraft.ttf', 28)
-            continue_text = continue_font.render("Presiona cualquier tecla para salir", True, WHITE)
+            continue_text = continue_font.render("PRESS ANY KEY TO CONTINUE", True, WHITE)
             continue_rect = continue_text.get_rect(center=(self.window_size // 2, self.window_size - 50))
             self.screen.blit(continue_text, continue_rect)
             
@@ -394,10 +394,10 @@ class Visualization:
                     # Toggle autoplay on/off
                     self.autoplay = not self.autoplay
                     if self.autoplay:
-                        print("[INFO] Autoplay activado")
+                        print("▶️ - AUTOPLAY: ON")
                         self.last_autoplay_time = pygame.time.get_ticks()
                     else:
-                        print("[INFO] Autoplay desactivado")
+                        print("⏸️ - AUTOPLAY: OFF")
                 if event.key == pygame.K_RIGHT:
                     if self.map_manager.player1.vehicles or self.map_manager.player2.vehicles:
                         self.current_turn += 1
@@ -407,7 +407,7 @@ class Visualization:
                         self.map_manager.next_turn(self.current_turn)
 
                         saved_file = self.map_manager.save_game(self.current_turn)
-                        print(f"[INFO] Avanzado al turno: {self.current_turn} — guardado en: {saved_file}")
+                        print(f"⏩ - ADVANCING TO TURN: {self.current_turn} — SAVED: {saved_file}")
                     pass
                 if event.key == pygame.K_LEFT:
                     if self.current_turn > 0:
@@ -418,11 +418,11 @@ class Visualization:
                             # Solo actualizamos current_turn si la carga fue exitosa
                             if self.map_manager.load_game(prev_turn_file, prev_turn):
                                 self.current_turn = prev_turn
-                                print(f"[INFO] Volviendo al turno: {self.current_turn}")
+                                print(f"⏪ - RETURNED TO TURN: {self.current_turn}")
                             else:
-                                print(f"[ERROR] Error al cargar el turno: {prev_turn}")
+                                print(f"❌ - ERROR LOADING TURN: {prev_turn}")
                         else:
-                            print(f"[ERROR] No se encontró el archivo del turno: {prev_turn}")
+                            print(f"❌ - TURN FILE NOT FOUND: {prev_turn_file}")
                     pass
     
     def run(self):
@@ -444,9 +444,17 @@ class Visualization:
                         'no_items': 'No quedan objetos en la partida. Fin del juego.',
                         'no_reachable_items': 'No hay objetos alcanzables por los vehículos. Fin del juego.'
                     }
-                    print(f"[GAME OVER] {reason_map.get(reason, 'Fin del juego.')}")
-                    print(f"[INFO] Resultado final: Jugador 1: {self.map_manager.player1.points} puntos | Jugador 2: {self.map_manager.player2.points} puntos")
-                    print(f"[INFO] Ganador: {'Jugador 1' if self.map_manager.player1.points > self.map_manager.player2.points else 'Jugador 2' if self.map_manager.player2.points > self.map_manager.player1.points else 'Empate'}")
+                    print(f"ℹ️ - GAME OVER: {reason_map.get(reason, 'Fin del juego')}")
+                    print(f"ℹ️ - FINAL RESULTS: Player 1: {self.map_manager.player1.points}, Player 2: {self.map_manager.player2.points}")
+                    print(f"ℹ️ - WINNER: {'PLAYER 1' if self.map_manager.player1.points > self.map_manager.player2.points else 'PLAYER 2' if self.map_manager.player2.points > self.map_manager.player1.points else 'TIE'}")
+                    
+                    # Generar archivo CSV con estadísticas antes de mostrar pantalla de fin
+                    try:
+                        csv_file = self.map_manager.generate_game_stats_csv(reason)
+                        if csv_file:
+                            print(f"📊 - GAME STATISTICS SAVED: {csv_file}")
+                    except Exception as e:
+                        print(f"❌ - ERROR GENERATING STATISTICS: {e}")
                     
                     # Mostrar pantalla de fin de juego
                     self.show_game_over_screen(reason)
@@ -466,12 +474,12 @@ class Visualization:
                         self.current_turn += 1
                         self.map_manager.next_turn(self.current_turn)
                         saved_file = self.map_manager.save_game(self.current_turn)
-                        print(f"[AUTOPLAY] Turno: {self.current_turn} — guardado en: {saved_file}")
+                        print(f"⏩ - AUTOPLAY ADVANCING TO TURN: {self.current_turn} — SAVED: {saved_file}")
                         self.last_autoplay_time = current_time
                     else:
                         # No vehicles left, stop autoplay
                         self.autoplay = False
-                        print("[INFO] Autoplay desactivado - No quedan vehículos")
+                        print("⏸️ - AUTOPLAY: OFF (NO VEHICLES LEFT)")
             
             self.render()
             self.clock.tick(60)

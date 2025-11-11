@@ -7,6 +7,7 @@ gestionar minas, vehículos y la resolución de colisiones.
 import random
 import pickle
 import os
+import csv
 from datetime import datetime
 from classes.Mine import Mine, Mine_O1, Mine_O2, Mine_T1, Mine_T2, Mine_G1
 from classes.Item import Person, Weapon, Clothing, Food, Heal
@@ -26,6 +27,40 @@ class MapManager:
         self.current_game_folder = None  # Se asignará cuando se cree o cargue una partida
         self.explosions = []
         self.current_turn = 0  # Turno actual del juego
+        
+        # Estadísticas de la partida
+        self.game_stats = {
+            'start_time': None,
+            'end_time': None,
+            'total_turns': 0,
+            'winner': None,
+            'end_reason': None,
+            'player1_stats': {
+                'final_points': 0,
+                'items_collected': {'Person': 0, 'Weapon': 0, 'Clothing': 0, 'Food': 0, 'Heal': 0},
+                'total_items_collected': 0,
+                'vehicles_lost': 0,
+                'vehicles_survived': 0,
+                'collisions': 0,
+                'mine_deaths': 0,
+                'strategies_used': {},  # {strategy_name: count}
+                'strategy_efficiency': {}  # {strategy_name: items_per_vehicle}
+            },
+            'player2_stats': {
+                'final_points': 0,
+                'items_collected': {'Person': 0, 'Weapon': 0, 'Clothing': 0, 'Food': 0, 'Heal': 0},
+                'total_items_collected': 0,
+                'vehicles_lost': 0,
+                'vehicles_survived': 0,
+                'collisions': 0,
+                'mine_deaths': 0,
+                'strategies_used': {},  # {strategy_name: count}
+                'strategy_efficiency': {}  # {strategy_name: items_per_vehicle}
+            }
+        }
+        
+        # Rastreo de vehículos iniciales para calcular estadísticas
+        self.initial_vehicles = {'player1': [], 'player2': []}
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
         x = random.randint(margin_x, self.width - 1 - margin_x)
@@ -82,12 +117,6 @@ class MapManager:
         return new_path
 
     def save_game(self, turn_number):
-        """Save a serializable snapshot of the game state.
-
-        We avoid pickling pygame Surfaces by converting objects to simple
-        dictionaries that contain only primitive types (strings, numbers,
-        tuples, lists). Returns the filename written.
-        """
         def serialize_item(item):
             return {
                 'type': item.__class__.__name__,
@@ -167,15 +196,11 @@ class MapManager:
         return filename
 
     def load_game(self, filename: str, turn: int):
-        """Load a previously saved game_state created by save_game.
-
-        This rebuilds mines, items and vehicles from the serialized data.
-        """
         try:
             with open(filename, 'rb') as f:
                 game_state = pickle.load(f)
         except Exception as e:
-            print(f"[ERROR] No se pudo abrir el archivo de guardado: {e}")
+            print(f"❌ - ERROR LOADING SAVED GAME FILE: {e}")
             return False
 
         try:
@@ -332,12 +357,16 @@ class MapManager:
 
             return True
         except Exception as e:
-            print(f"[ERROR] Error al reconstruir el estado de la partida: {e}")
+            print(f"❌ - ERROR RESTORING GAME STATE FROM FILE: {e}")
             return False
 
     def new_game(self):
         # Inicializa un nuevo tablero y coloca vehículos, minas y items
         self.clear()
+        
+        # Inicializar estadísticas del juego
+        self.game_stats['start_time'] = datetime.now()
+        self.current_turn = 0
         
         # Crear carpeta para la nueva partida
         if self.current_game_folder is None:
@@ -410,7 +439,7 @@ class MapManager:
                 })
                 
         except Exception as e:
-            print(f"[WARNING] No se pudo cargar configuración de vehículos del config: {e}. Usando configuración por defecto.")
+            print(f"❌ - ERROR LOADING CONFIGURATION FILE: {e}, USING DEFAULT VEHICLE SETUP")
             from strategies import PickNearest
             # Configuración por defecto (10 vehículos por jugador)
             default_vehicles = [
@@ -491,6 +520,29 @@ class MapManager:
         for item in items:
             x, y = item.position
             self.grid[x][y] = item
+        
+        # Registrar vehículos iniciales y estrategias para estadísticas
+        self.initial_vehicles = {'player1': [], 'player2': []}
+        for v in self.player1.vehicles:
+            strategy_name = v.strategy.__class__.__name__ if hasattr(v, 'strategy') else 'Unknown'
+            self.initial_vehicles['player1'].append({
+                'type': v.__class__.__name__,
+                'strategy': strategy_name
+            })
+            # Contar estrategias usadas
+            self.game_stats['player1_stats']['strategies_used'][strategy_name] = \
+                self.game_stats['player1_stats']['strategies_used'].get(strategy_name, 0) + 1
+        
+        for v in self.player2.vehicles:
+            strategy_name = v.strategy.__class__.__name__ if hasattr(v, 'strategy') else 'Unknown'
+            self.initial_vehicles['player2'].append({
+                'type': v.__class__.__name__,
+                'strategy': strategy_name
+            })
+            # Contar estrategias usadas
+            self.game_stats['player2_stats']['strategies_used'][strategy_name] = \
+                self.game_stats['player2_stats']['strategies_used'].get(strategy_name, 0) + 1
+        
         return
 
     def update_danger_zones(self):
@@ -616,6 +668,11 @@ class MapManager:
                 # Track whether any vehicle restored an item to this cell
                 restored_item = False
                 for v in vs:
+                    # Registrar estadísticas de colisión
+                    player_key = 'player1_stats' if v.team == self.player1 else 'player2_stats'
+                    self.game_stats[player_key]['collisions'] += 1
+                    self.game_stats[player_key]['vehicles_lost'] += 1
+                    
                     # If a vehicle had an item stored under it, restore it to the grid
                     try:
                         if getattr(v, 'under_item', None) is not None:
@@ -644,9 +701,9 @@ class MapManager:
                     except Exception:
                         pass
                 # Registro de colisión: imprimimos información consistente en español
-                print(f"[COLISIÓN] Posición: {pos} — Vehículos eliminados: {len(vs)}")
-                detalle_vehiculos = [f"{v.__class__.__name__} (equipo: {v.team.name})" for v in vs]
-                print(f"[COLISIÓN] Vehículos involucrados: {detalle_vehiculos}")
+                print(f"💥 - COLLISION ({pos})")
+                detalle_vehiculos = [f"{v.__class__.__name__.upper()} - TEAM: {v.team.name.upper()}" for v in vs]
+                print(f"💥 - COLLISION VEHICLES: {detalle_vehiculos}")
 
         # Collect all mines on the grid
         mines = []
@@ -666,6 +723,11 @@ class MapManager:
             for mine in mines:
                 mine_x, mine_y = mine.position
                 if abs(vehicle_x - mine_x) <= mine.x_radius and abs(vehicle_y - mine_y) <= mine.y_radius:
+                    # Registrar estadísticas de muerte por mina
+                    player_key = 'player1_stats' if vehicle.team == self.player1 else 'player2_stats'
+                    self.game_stats[player_key]['mine_deaths'] += 1
+                    self.game_stats[player_key]['vehicles_lost'] += 1
+                    
                     # Restaurar cualquier item que estuviera bajo el vehículo
                     restored_item = False
                     try:
@@ -704,14 +766,6 @@ class MapManager:
                     break
 
     def is_game_over(self):
-        """Return (True, reason) if the game should end.
-
-        Reasons:
-          - 'no_vehicles': no vehicles remain for either player
-          - 'no_items': there are no items anywhere (on grid or in vehicles)
-          - 'no_reachable_items': there are items on the grid but no available
-            vehicle can find a safe path to any of them
-        """
         try:
             from classes.Item import Item, Person
         except Exception:
@@ -797,3 +851,180 @@ class MapManager:
         
         # No hay items alcanzables Y no hay vehículos con carga
         return True, 'no_reachable_items'
+    
+    def generate_game_stats_csv(self, end_reason: str):
+        """Genera un archivo CSV con las estadísticas completas de la partida"""
+        if self.current_game_folder is None:
+            print("❌ - ERROR: No hay carpeta de juego activa para guardar estadísticas")
+            return
+        
+        # Actualizar estadísticas finales
+        self.game_stats['end_time'] = datetime.now()
+        self.game_stats['total_turns'] = self.current_turn
+        self.game_stats['end_reason'] = end_reason
+        
+        # Determinar ganador
+        p1_points = self.player1.points
+        p2_points = self.player2.points
+        if p1_points > p2_points:
+            self.game_stats['winner'] = 'Player 1'
+        elif p2_points > p1_points:
+            self.game_stats['winner'] = 'Player 2'
+        else:
+            self.game_stats['winner'] = 'Empate'
+        
+        # Actualizar estadísticas de puntos finales
+        self.game_stats['player1_stats']['final_points'] = p1_points
+        self.game_stats['player2_stats']['final_points'] = p2_points
+        
+        # Actualizar estadísticas de items recolectados
+        for item_type in self.player1.items_collected:
+            self.game_stats['player1_stats']['items_collected'][item_type] = \
+                self.player1.items_collected[item_type]
+        for item_type in self.player2.items_collected:
+            self.game_stats['player2_stats']['items_collected'][item_type] = \
+                self.player2.items_collected[item_type]
+        
+        # Calcular total de items recolectados
+        self.game_stats['player1_stats']['total_items_collected'] = \
+            sum(self.player1.items_collected.values())
+        self.game_stats['player2_stats']['total_items_collected'] = \
+            sum(self.player2.items_collected.values())
+        
+        # Calcular vehículos sobrevivientes
+        self.game_stats['player1_stats']['vehicles_survived'] = len(self.player1.vehicles)
+        self.game_stats['player2_stats']['vehicles_survived'] = len(self.player2.vehicles)
+        
+        # Calcular eficiencia por estrategia
+        self._calculate_strategy_efficiency()
+        
+        # Generar archivo CSV
+        csv_filename = os.path.join(self.current_game_folder, 'game_statistics.csv')
+        
+        try:
+            with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                
+                # General information
+                writer.writerow(['=== GENERAL INFORMATION ==='])
+                writer.writerow(['Game start', self.game_stats['start_time']])
+                writer.writerow(['Game end', self.game_stats['end_time']])
+                duration = self.game_stats['end_time'] - self.game_stats['start_time']
+                writer.writerow(['Duration', str(duration)])
+                writer.writerow(['Total turns', self.game_stats['total_turns']])
+                writer.writerow(['End reason', end_reason])
+                writer.writerow(['Winner', self.game_stats['winner']])
+                writer.writerow([])
+                
+                # Final score
+                writer.writerow(['=== FINAL SCORE ==='])
+                writer.writerow(['Player 1', p1_points])
+                writer.writerow(['Player 2', p2_points])
+                writer.writerow(['Difference', abs(p1_points - p2_points)])
+                writer.writerow([])
+                
+                # Statistics per player
+                for player_name, player_key in [('Player 1', 'player1_stats'), ('Player 2', 'player2_stats')]:
+                    stats = self.game_stats[player_key]
+                    writer.writerow([f'=== {player_name.upper()} STATISTICS ==='])
+                    writer.writerow(['Final points', stats['final_points']])
+                    writer.writerow(['Total items collected', stats['total_items_collected']])
+                    writer.writerow(['Vehicles lost', stats['vehicles_lost']])
+                    writer.writerow(['Vehicles survived', stats['vehicles_survived']])
+                    writer.writerow(['Collision deaths', stats['collisions']])
+                    writer.writerow(['Mine deaths', stats['mine_deaths']])
+                    writer.writerow([])
+                    
+                    # Items collected by type
+                    writer.writerow([f'Items collected by type - {player_name}:'])
+                    writer.writerow(['Type', 'Count'])
+                    for item_type, count in stats['items_collected'].items():
+                        writer.writerow([item_type, count])
+                    writer.writerow([])
+                
+                # Strategy efficiency (comparison)
+                writer.writerow(['=== STRATEGY EFFICIENCY ==='])
+                writer.writerow(['Strategy', 'Player 1 - Items/Vehicle', 'Player 2 - Items/Vehicle', 'Best'])
+                
+                all_strategies = set(
+                    list(self.game_stats['player1_stats']['strategy_efficiency'].keys()) +
+                    list(self.game_stats['player2_stats']['strategy_efficiency'].keys())
+                )
+                
+                for strategy in sorted(all_strategies):
+                    p1_eff = self.game_stats['player1_stats']['strategy_efficiency'].get(strategy, 0)
+                    p2_eff = self.game_stats['player2_stats']['strategy_efficiency'].get(strategy, 0)
+                    
+                    if p1_eff > p2_eff:
+                        better = 'Player 1'
+                    elif p2_eff > p1_eff:
+                        better = 'Player 2'
+                    else:
+                        better = 'Tie'
+                    
+                    writer.writerow([strategy, f'{p1_eff:.2f}', f'{p2_eff:.2f}', better])
+                writer.writerow([])
+                
+                # Ranking of strategies by average efficiency
+                writer.writerow(['=== STRATEGY RANKING (BY AVERAGE EFFICIENCY) ==='])
+                writer.writerow(['Rank', 'Strategy', 'Average Efficiency', 'Player'])
+                
+                strategy_rankings = []
+                for strategy in all_strategies:
+                    p1_eff = self.game_stats['player1_stats']['strategy_efficiency'].get(strategy, 0)
+                    p2_eff = self.game_stats['player2_stats']['strategy_efficiency'].get(strategy, 0)
+                    
+                    if p1_eff > 0:
+                        strategy_rankings.append((strategy, p1_eff, 'Player 1'))
+                    if p2_eff > 0:
+                        strategy_rankings.append((strategy, p2_eff, 'Player 2'))
+                
+                # Sort by efficiency descending
+                strategy_rankings.sort(key=lambda x: x[1], reverse=True)
+                
+                for idx, (strategy, efficiency, player) in enumerate(strategy_rankings, 1):
+                    writer.writerow([idx, strategy, f'{efficiency:.2f}', player])
+                writer.writerow([])
+                
+                # Strategies used
+                writer.writerow(['=== STRATEGIES USED ==='])
+                writer.writerow(['Strategy', 'Player 1 (vehicles)', 'Player 2 (vehicles)'])
+                
+                for strategy in sorted(all_strategies):
+                    p1_count = self.game_stats['player1_stats']['strategies_used'].get(strategy, 0)
+                    p2_count = self.game_stats['player2_stats']['strategies_used'].get(strategy, 0)
+                    writer.writerow([strategy, p1_count, p2_count])
+            
+            print(f"✅ - STATS SAVED TO CSV: {csv_filename}")
+            return csv_filename
+        
+        except Exception as e:
+            print(f"❌ - ERROR SAVING STATS TO CSV: {e}")
+            return None
+    
+    def _calculate_strategy_efficiency(self):
+        """Calcula la eficiencia de cada estrategia (items recolectados por vehículo)"""
+        # Rastrear items recolectados por estrategia
+        p1_strategy_items = {}
+        p2_strategy_items = {}
+        
+        # Para calcular eficiencia, necesitamos saber cuántos items recolectó cada vehículo
+        # Como no tenemos rastreo individual, usaremos un enfoque aproximado:
+        # dividir items totales proporcionalmente por el número de vehículos de cada estrategia
+        
+        for strategy in self.game_stats['player1_stats']['strategies_used']:
+            vehicle_count = self.game_stats['player1_stats']['strategies_used'][strategy]
+            if vehicle_count > 0:
+                # Aproximación: asumir distribución proporcional
+                total_items = self.game_stats['player1_stats']['total_items_collected']
+                total_vehicles = sum(self.game_stats['player1_stats']['strategies_used'].values())
+                avg_items = total_items / total_vehicles if total_vehicles > 0 else 0
+                self.game_stats['player1_stats']['strategy_efficiency'][strategy] = avg_items
+        
+        for strategy in self.game_stats['player2_stats']['strategies_used']:
+            vehicle_count = self.game_stats['player2_stats']['strategies_used'][strategy]
+            if vehicle_count > 0:
+                total_items = self.game_stats['player2_stats']['total_items_collected']
+                total_vehicles = sum(self.game_stats['player2_stats']['strategies_used'].values())
+                avg_items = total_items / total_vehicles if total_vehicles > 0 else 0
+                self.game_stats['player2_stats']['strategy_efficiency'][strategy] = avg_items
