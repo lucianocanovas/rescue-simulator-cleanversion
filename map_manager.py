@@ -25,6 +25,7 @@ class MapManager:
         self.danger_zones = [[False for _ in range(self.height)] for _ in range(self.width)]
         self.current_game_folder = None  # Se asignará cuando se cree o cargue una partida
         self.explosions = []
+        self.current_turn = 0  # Turno actual del juego
                 
     def get_empty_cell(self, margin_x=1, margin_y=0):
         x = random.randint(margin_x, self.width - 1 - margin_x)
@@ -342,81 +343,127 @@ class MapManager:
         if self.current_game_folder is None:
             self.current_game_folder = self._get_next_game_folder()
         
-        # Cargar estrategias desde config.json
-        strategies_p1 = []
-        strategies_p2 = []
+        # Cargar configuración de vehículos desde config.json
+        vehicles_p1 = []
+        vehicles_p2 = []
         try:
             import json
             config_path = os.path.join(os.path.dirname(__file__), 'config.json')
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-            strategies_config = config.get('strategies', {})
-            strategy_names_p1 = strategies_config.get('player1', [])
-            strategy_names_p2 = strategies_config.get('player2', [])
             
             # Importar las clases de estrategia
-            from strategies import PickNearest, Kamikaze, Escort, Invader
+            from strategies import PickNearest, Kamikaze, Escort, Invader, FullSafe
             strategy_map = {
                 'PickNearest': PickNearest,
                 'Kamikaze': Kamikaze,
                 'Escort': Escort,
-                'Invader': Invader
+                'Invader': Invader,
+                'FullSafe': FullSafe
             }
             
-            # Crear instancias de estrategias para player1
-            for name in strategy_names_p1:
-                if name in strategy_map:
-                    strategies_p1.append(strategy_map[name]())
-                else:
-                    strategies_p1.append(PickNearest())  # Default
+            # Mapa de tipos de vehículos
+            vehicle_type_map = {
+                'Truck': Truck,
+                'Car': Car,
+                'Jeep': Jeep,
+                'Motorcycle': Motorcycle
+            }
             
-            # Crear instancias de estrategias para player2
-            for name in strategy_names_p2:
-                if name in strategy_map:
-                    strategies_p2.append(strategy_map[name]())
-                else:
-                    strategies_p2.append(PickNearest())  # Default
+            # Leer configuración de jugadores
+            players_config = config.get('players', {})
+            
+            # Configurar vehículos para player1
+            p1_config = players_config.get('player1', {}).get('vehicles', [])
+            for vehicle_config in p1_config:
+                vehicle_type = vehicle_config.get('type', 'Car')
+                strategy_name = vehicle_config.get('strategy', 'PickNearest')
+                y_pos = vehicle_config.get('y_position', 0)
+                
+                # Crear instancia de vehículo
+                vehicle_class = vehicle_type_map.get(vehicle_type, Car)
+                strategy_class = strategy_map.get(strategy_name, PickNearest)
+                strategy = strategy_class()
+                
+                vehicles_p1.append({
+                    'class': vehicle_class,
+                    'position': (0, y_pos),
+                    'strategy': strategy
+                })
+            
+            # Configurar vehículos para player2
+            p2_config = players_config.get('player2', {}).get('vehicles', [])
+            for vehicle_config in p2_config:
+                vehicle_type = vehicle_config.get('type', 'Car')
+                strategy_name = vehicle_config.get('strategy', 'PickNearest')
+                y_pos = vehicle_config.get('y_position', 0)
+                
+                # Crear instancia de vehículo
+                vehicle_class = vehicle_type_map.get(vehicle_type, Car)
+                strategy_class = strategy_map.get(strategy_name, PickNearest)
+                strategy = strategy_class()
+                
+                vehicles_p2.append({
+                    'class': vehicle_class,
+                    'position': (self.width - 1, y_pos),
+                    'strategy': strategy
+                })
+                
         except Exception as e:
-            print(f"[WARNING] No se pudieron cargar estrategias del config: {e}. Usando PickNearest por defecto.")
+            print(f"[WARNING] No se pudo cargar configuración de vehículos del config: {e}. Usando configuración por defecto.")
             from strategies import PickNearest
-            strategies_p1 = [PickNearest() for _ in range(10)]
-            strategies_p2 = [PickNearest() for _ in range(10)]
+            # Configuración por defecto (10 vehículos por jugador)
+            default_vehicles = [
+                (Truck, 2), (Car, 7), (Jeep, 12), (Motorcycle, 17), (Jeep, 22),
+                (Car, 27), (Truck, 32), (Car, 37), (Motorcycle, 42), (Jeep, 47)
+            ]
+            for vehicle_class, y_pos in default_vehicles:
+                vehicles_p1.append({
+                    'class': vehicle_class,
+                    'position': (0, y_pos),
+                    'strategy': PickNearest()
+                })
+                vehicles_p2.append({
+                    'class': vehicle_class,
+                    'position': (self.width - 1, y_pos),
+                    'strategy': PickNearest()
+                })
         
-        # Asegurar que hay 10 estrategias
-        while len(strategies_p1) < 10:
+        # Asegurar que hay al menos un vehículo
+        if not vehicles_p1:
             from strategies import PickNearest
-            strategies_p1.append(PickNearest())
-        while len(strategies_p2) < 10:
+            vehicles_p1.append({
+                'class': Car,
+                'position': (0, self.height // 2),
+                'strategy': PickNearest()
+            })
+        if not vehicles_p2:
             from strategies import PickNearest
-            strategies_p2.append(PickNearest())
+            vehicles_p2.append({
+                'class': Car,
+                'position': (self.width - 1, self.height // 2),
+                'strategy': PickNearest()
+            })
 
-        # Setup Player 1 Vehicles (orden: Truck, Truck, Jeep, Jeep, Jeep, Car, Car, Car, Moto, Moto)
-        self.player1.add_vehicle(Truck(self.player1, (0, 2), strategy=strategies_p1[0]))
-        self.player1.add_vehicle(Car(self.player1, (0, 7), strategy=strategies_p1[1]))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 12), strategy=strategies_p1[2]))
-        self.player1.add_vehicle(Motorcycle(self.player1, (0, 17), strategy=strategies_p1[3]))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 22), strategy=strategies_p1[4]))
-        self.player1.add_vehicle(Car(self.player1, (0, 27), strategy=strategies_p1[5]))
-        self.player1.add_vehicle(Truck(self.player1, (0, 32), strategy=strategies_p1[6]))
-        self.player1.add_vehicle(Car(self.player1, (0, 37), strategy=strategies_p1[7]))
-        self.player1.add_vehicle(Motorcycle(self.player1, (0, 42), strategy=strategies_p1[8]))
-        self.player1.add_vehicle(Jeep(self.player1, (0, 47), strategy=strategies_p1[9]))
-        for vehicle in self.player1.vehicles:
+        # Setup Player 1 Vehicles
+        for vehicle_data in vehicles_p1:
+            vehicle = vehicle_data['class'](
+                self.player1, 
+                vehicle_data['position'], 
+                strategy=vehicle_data['strategy']
+            )
+            self.player1.add_vehicle(vehicle)
             x, y = vehicle.position
             self.grid[x][y] = vehicle
 
         # Setup Player 2 Vehicles
-        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 2), strategy=strategies_p2[0]))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 7), strategy=strategies_p2[1]))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 12), strategy=strategies_p2[2]))
-        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 17), strategy=strategies_p2[3]))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 22), strategy=strategies_p2[4]))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 27), strategy=strategies_p2[5]))
-        self.player2.add_vehicle(Truck(self.player2, (self.width - 1, 32), strategy=strategies_p2[6]))
-        self.player2.add_vehicle(Car(self.player2, (self.width - 1, 37), strategy=strategies_p2[7]))
-        self.player2.add_vehicle(Motorcycle(self.player2, (self.width - 1, 42), strategy=strategies_p2[8]))
-        self.player2.add_vehicle(Jeep(self.player2, (self.width - 1, 47), strategy=strategies_p2[9]))
-        for vehicle in self.player2.vehicles:
+        for vehicle_data in vehicles_p2:
+            vehicle = vehicle_data['class'](
+                self.player2, 
+                vehicle_data['position'], 
+                strategy=vehicle_data['strategy']
+            )
+            self.player2.add_vehicle(vehicle)
             x, y = vehicle.position
             self.grid[x][y] = vehicle
 
@@ -467,6 +514,8 @@ class MapManager:
                     self.danger_zones[vehicle_x][vehicle_y] = True
     
     def next_turn(self, current_turn: int):
+        # Guardar el turno actual
+        self.current_turn = current_turn
 
         # DEBUG: registrar estado de minas antes de ejecutar el turno
         try:

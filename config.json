@@ -5,31 +5,35 @@
     "autoplay_delay": 100
   },
 
-  "strategies": {
-    "player1": [
-      "PickNearest",
-      "Invader",
-      "PickNearest",
-      "Escort",
-      "Kamikaze",
-      "PickNearest",
-      "Invader",
-      "Escort",
-      "PickNearest",
-      "Kamikaze"
-    ],
-    "player2": [
-      "Invader",
-      "PickNearest",
-      "Kamikaze",
-      "PickNearest",
-      "Escort",
-      "Invader",
-      "PickNearest",
-      "Kamikaze",
-      "Escort",
-      "PickNearest"
-    ]
+  "players": {
+    "player1": {
+      "vehicles": [
+        {"type": "Truck", "strategy": "FullSafe", "y_position": 2},
+        {"type": "Car", "strategy": "Invader", "y_position": 7},
+        {"type": "Jeep", "strategy": "PickNearest", "y_position": 12},
+        {"type": "Motorcycle", "strategy": "FullSafe", "y_position": 17},
+        {"type": "Jeep", "strategy": "Kamikaze", "y_position": 22},
+        {"type": "Car", "strategy": "PickNearest", "y_position": 27},
+        {"type": "Truck", "strategy": "Invader", "y_position": 32},
+        {"type": "Car", "strategy": "Escort", "y_position": 37},
+        {"type": "Motorcycle", "strategy": "FullSafe", "y_position": 42},
+        {"type": "Jeep", "strategy": "Kamikaze", "y_position": 47}
+      ]
+    },
+    "player2": {
+      "vehicles": [
+        {"type": "Truck", "strategy": "Invader", "y_position": 2},
+        {"type": "Car", "strategy": "FullSafe", "y_position": 7},
+        {"type": "Jeep", "strategy": "Kamikaze", "y_position": 12},
+        {"type": "Motorcycle", "strategy": "PickNearest", "y_position": 17},
+        {"type": "Jeep", "strategy": "FullSafe", "y_position": 22},
+        {"type": "Car", "strategy": "Invader", "y_position": 27},
+        {"type": "Truck", "strategy": "PickNearest", "y_position": 32},
+        {"type": "Car", "strategy": "Kamikaze", "y_position": 37},
+        {"type": "Motorcycle", "strategy": "Escort", "y_position": 42},
+        {"type": "Jeep", "strategy": "FullSafe", "y_position": 47}
+      ]
+    }
   }
 
 }
