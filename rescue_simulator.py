@@ -56,7 +56,7 @@ def main():
             print("❗ - NO SAVED GAMES FOUND. STARTING NEW GAME INSTEAD.")
             choice = 'n'
         else:
-            saved_games = [directory for directory in os.listdir(base_directory) if directory.startswith('Partida_')]
+            saved_games = [directory for directory in os.listdir(base_directory) if directory.startswith('Game_')]
             saved_games.sort(key=lambda x: int(x.split('_')[1]))
             if not saved_games:
                 print("❗- NOT SAVED GAMES FOUND. STARTING NEW GAME INSTEAD.")
@@ -75,7 +75,7 @@ def main():
                         if game_index < 0 or game_index >= len(saved_games):
                             raise ValueError()
                         selected_folder = os.path.join(base_directory, saved_games[game_index])
-                        turn_files = [file for file in os.listdir(selected_folder) if file.startswith('turno_') and file.endswith('.pkl')]
+                        turn_files = [file for file in os.listdir(selected_folder) if file.startswith('turn_') and file.endswith('.pkl')]
                         turn_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
                         if not turn_files:
                             print("❗- NO TURNS FOUND IN SELECTED GAME. STARTING NEW GAME INSTEAD.")
