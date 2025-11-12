@@ -121,7 +121,8 @@ After each game, a **CSV file** is generated in the save folder with:
 This project uses graphics and audio assets from various sources:
 
 #### Graphics
-- **Sprites**: Custom pixel art and open-source game assets
+- **Main Sprites**: Minecraft item sprites
+- **Other Sprites**: Custom pixel art and open-source game assets
 - **Icons**: Game icons from community resources
 - **UI Elements**: Minecraft-inspired font and interface elements
 
